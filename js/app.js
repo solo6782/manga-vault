@@ -258,32 +258,41 @@ function resetMangaSearch() {
 }
 
 // ============================================
-// VF SEARCH via Nautiljon (2-step: search → detail)
+// VF SEARCH via Nautiljon
 // ============================================
 
-var CORS_PROXIES = [
-  function(url) { return "https://api.allorigins.win/get?url=" + encodeURIComponent(url); },
-  function(url) { return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url); },
-];
+function titleToNautiljonSlug(title) {
+  // Convert "GE: Good Ending" → "ge+-+good+ending"
+  return title
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/[:'!?.,;()[\]{}""''«»]/g, "")           // remove punctuation
+    .replace(/\s*-\s*/g, " - ")                        // normalize dashes
+    .trim()
+    .replace(/\s+/g, "+");                             // spaces to +
+}
 
-async function fetchViaProxy(url) {
-  for (var i = 0; i < CORS_PROXIES.length; i++) {
+async function fetchWithProxy(url) {
+  // Try multiple CORS proxies
+  var proxies = [
+    "https://corsproxy.io/?" + encodeURIComponent(url),
+    "https://api.allorigins.win/raw?url=" + encodeURIComponent(url),
+    "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url),
+  ];
+
+  for (var i = 0; i < proxies.length; i++) {
     try {
-      var proxyUrl = CORS_PROXIES[i](url);
-      var response = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
-
-      if (!response.ok) continue;
-
-      // allorigins returns { contents: "..." }
-      var contentType = response.headers.get("content-type") || "";
-      if (contentType.indexOf("json") >= 0) {
-        var json = await response.json();
-        return json.contents || "";
+      console.log("VF: trying proxy " + i + " for " + url);
+      var response = await fetch(proxies[i], { signal: AbortSignal.timeout(10000) });
+      if (response.ok) {
+        var text = await response.text();
+        if (text && text.length > 500) {
+          console.log("VF: proxy " + i + " OK, got " + text.length + " chars");
+          return text;
+        }
       }
-      // codetabs returns raw HTML
-      return await response.text();
     } catch (e) {
-      console.log("Proxy " + i + " failed:", e.message);
+      console.log("VF: proxy " + i + " failed:", e.message);
     }
   }
   return null;
@@ -299,62 +308,94 @@ async function searchVF() {
   btn.textContent = "⏳";
   statusEl.style.display = "block";
   statusEl.className = "vf-status searching";
-  statusEl.innerHTML = "Recherche VF sur Nautiljon...";
+  statusEl.innerHTML = "Recherche VF...";
 
   var found = false;
 
-  // Step 1: Search on Nautiljon
-  try {
+  // Strategy 1: Try direct URL (works for most mangas)
+  var slug = titleToNautiljonSlug(title);
+  var directUrl = "https://www.nautiljon.com/mangas/" + slug + ".html";
+  console.log("VF: trying direct URL:", directUrl);
+
+  var html = await fetchWithProxy(directUrl);
+
+  // Check if we got the right page (should contain "Nb volumes")
+  if (html && html.indexOf("Nb volumes") >= 0) {
+    found = parseNautiljonVF(html, directUrl, statusEl);
+  }
+
+  // Strategy 2: Search page if direct URL didn't work
+  if (!found) {
+    statusEl.innerHTML = "Recherche sur Nautiljon...";
     var searchUrl = "https://www.nautiljon.com/mangas/?q=" + encodeURIComponent(title);
-    var searchHtml = await fetchViaProxy(searchUrl);
+    console.log("VF: trying search:", searchUrl);
+
+    var searchHtml = await fetchWithProxy(searchUrl);
 
     if (searchHtml) {
-      // Find the first manga detail link in search results
-      // Nautiljon links look like: href="/mangas/ge+-+good+ending.html"
-      var linkMatch = searchHtml.match(/href="(\/mangas\/[^"]+\.html)"/);
+      // Find detail page link - Nautiljon uses various formats
+      var linkPatterns = [
+        /href="(\/mangas\/[^"]+\.html)"/g,
+        /href='(\/mangas\/[^']+\.html)'/g,
+      ];
 
-      if (linkMatch && linkMatch[1]) {
-        var detailUrl = "https://www.nautiljon.com" + linkMatch[1];
-        statusEl.innerHTML = "Lecture de la fiche Nautiljon...";
+      var detailPath = null;
+      for (var p = 0; p < linkPatterns.length && !detailPath; p++) {
+        var match = linkPatterns[p].exec(searchHtml);
+        // Skip if it's just the search page or category page
+        while (match) {
+          if (match[1].indexOf("?") < 0 && match[1] !== "/mangas/") {
+            detailPath = match[1];
+            break;
+          }
+          match = linkPatterns[p].exec(searchHtml);
+        }
+      }
 
-        // Step 2: Fetch detail page
-        var detailHtml = await fetchViaProxy(detailUrl);
+      if (detailPath) {
+        var detailUrl = "https://www.nautiljon.com" + detailPath;
+        console.log("VF: found detail page:", detailUrl);
+        statusEl.innerHTML = "Lecture de la fiche...";
 
+        var detailHtml = await fetchWithProxy(detailUrl);
         if (detailHtml) {
-          // Parse "Nb volumes VF : 16" or "Nb volumes VF : 16 (Terminé)"
-          var vfMatch = detailHtml.match(/Nb\s*volumes?\s*VF\s*:\s*(\d+)/i);
-          if (vfMatch && vfMatch[1]) {
-            var volVF = parseInt(vfMatch[1]);
-            document.getElementById("fm-fr-volumes").value = volVF;
-            statusEl.innerHTML = '✓ Nautiljon : ' + volVF + ' tomes VF · <a href="' + detailUrl + '" target="_blank">Vérifier ↗</a>';
-            statusEl.className = "vf-status success";
-            found = true;
-          }
-
-          // Bonus: also grab VO count if we didn't have it
-          if (!document.getElementById("fm-volumes-vo").value) {
-            var voMatch = detailHtml.match(/Nb\s*volumes?\s*VO\s*:\s*(\d+)/i);
-            if (voMatch && voMatch[1]) {
-              document.getElementById("fm-volumes-vo").value = parseInt(voMatch[1]);
-            }
-          }
+          found = parseNautiljonVF(detailHtml, detailUrl, statusEl);
         }
       }
     }
-  } catch (err) {
-    console.log("Nautiljon search failed:", err);
   }
 
-  // Fallback: direct link to manga-news for manual check
+  // Fallback: give direct links
   if (!found) {
-    var mnUrl = "https://www.manga-news.com/index.php/recherche?query=" + encodeURIComponent(title);
     var nautUrl = "https://www.nautiljon.com/mangas/?q=" + encodeURIComponent(title);
+    var mnUrl = "https://www.manga-news.com/index.php/recherche?query=" + encodeURIComponent(title);
     statusEl.innerHTML = 'Pas trouvé auto. Vérifie : <a href="' + nautUrl + '" target="_blank">Nautiljon ↗</a> · <a href="' + mnUrl + '" target="_blank">Manga-News ↗</a>';
     statusEl.className = "vf-status not-found";
   }
 
   btn.disabled = false;
   btn.textContent = "🔍 Chercher";
+}
+
+function parseNautiljonVF(html, pageUrl, statusEl) {
+  // Look for "Nb volumes VF : 16" or "Nb volumes VF : 16 (Terminé)"
+  var vfMatch = html.match(/Nb\s*volumes?\s*VF\s*[:\s]+(\d+)/i);
+  if (vfMatch && vfMatch[1]) {
+    var volVF = parseInt(vfMatch[1]);
+    document.getElementById("fm-fr-volumes").value = volVF;
+    statusEl.innerHTML = '✓ Nautiljon : ' + volVF + ' tomes VF · <a href="' + pageUrl + '" target="_blank">Vérifier ↗</a>';
+    statusEl.className = "vf-status success";
+
+    // Bonus: also grab VO count
+    if (!document.getElementById("fm-volumes-vo").value) {
+      var voMatch = html.match(/Nb\s*volumes?\s*VO\s*[:\s]+(\d+)/i);
+      if (voMatch && voMatch[1]) {
+        document.getElementById("fm-volumes-vo").value = parseInt(voMatch[1]);
+      }
+    }
+    return true;
+  }
+  return false;
 }
 
 // ============================================
