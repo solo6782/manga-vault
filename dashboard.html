@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ma collection — MangaVault</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+  <div id="loading" class="loading">Chargement...</div>
+  <div id="app" style="display:none">
+    <!-- Navbar -->
+    <nav class="navbar">
+      <a href="dashboard.html" class="navbar-brand">
+        <h1>Manga<span>Vault</span></h1>
+        <span class="tag">私のコレクション</span>
+      </a>
+      <div class="navbar-user">
+        <button class="navbar-user-btn" onclick="toggleMenu()">
+          <div id="user-avatar"></div>
+          <span id="user-name"></span>
+          <span style="font-size:10px;color:#555">▼</span>
+        </button>
+        <div id="user-dropdown" class="navbar-dropdown" style="display:none">
+          <div class="navbar-dropdown-email" id="user-email"></div>
+          <button class="navbar-dropdown-btn" onclick="logout()">Se déconnecter</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Dashboard -->
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <h2>Ma collection</h2>
+        <button class="btn-add" onclick="openModal()">
+          <span class="plus">+</span> Ajouter
+        </button>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-bar" id="stats-bar"></div>
+
+      <!-- Filters -->
+      <div class="filters">
+        <div class="search-box">
+          <span class="icon">⌕</span>
+          <input type="text" id="search" placeholder="Rechercher..." oninput="renderWorks()">
+        </div>
+        <div class="filter-group" id="type-filters">
+          <button class="filter-btn active" data-type="all" onclick="setFilter('type', 'all', this)">Tout</button>
+          <button class="filter-btn" data-type="manga" onclick="setFilter('type', 'manga', this)">漫画</button>
+          <button class="filter-btn" data-type="anime" onclick="setFilter('type', 'anime', this)">アニメ</button>
+        </div>
+        <select class="filter-select" id="status-filter" onchange="renderWorks()">
+          <option value="all">Tous statuts</option>
+          <option value="en_cours">En cours</option>
+          <option value="termine">Terminé</option>
+          <option value="en_pause">En pause</option>
+          <option value="abandonne">Abandonné</option>
+          <option value="planifie">Planifié</option>
+        </select>
+        <select class="filter-select" id="sort-by" onchange="renderWorks()">
+          <option value="created_at">Plus récent</option>
+          <option value="rating">Meilleure note</option>
+          <option value="title">A → Z</option>
+        </select>
+      </div>
+
+      <!-- Grid -->
+      <div id="works-grid" class="works-grid"></div>
+      <div id="empty-state" class="empty-state" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal-overlay" class="modal-overlay" style="display:none" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <h2 id="modal-title">Ajouter une œuvre</h2>
+
+      <div class="modal-field">
+        <label class="modal-label">Titre *</label>
+        <input class="modal-input" id="f-title" placeholder="Ex: Attack on Titan">
+      </div>
+
+      <div class="modal-row">
+        <div>
+          <label class="modal-label">Type</label>
+          <div class="type-toggle">
+            <button class="type-btn active-manga" id="f-type-manga" onclick="setType('manga')">漫画</button>
+            <button class="type-btn" id="f-type-anime" onclick="setType('anime')">アニメ</button>
+          </div>
+        </div>
+        <div>
+          <label class="modal-label">Statut</label>
+          <select class="modal-input" id="f-status">
+            <option value="en_cours">En cours</option>
+            <option value="termine">Terminé</option>
+            <option value="en_pause">En pause</option>
+            <option value="abandonne">Abandonné</option>
+            <option value="planifie">Planifié</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Note</label>
+        <div class="star-rating" id="star-rating"></div>
+        <span style="font-size:13px;color:#666;margin-top:4px;display:block;font-family:var(--font-mono)" id="rating-label">7/10</span>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Genres</label>
+        <div class="genre-tags" id="genre-tags"></div>
+      </div>
+
+      <div class="modal-row" id="progress-fields"></div>
+
+      <div class="modal-field">
+        <label class="modal-label">Image URL</label>
+        <input class="modal-input" id="f-image" placeholder="https://...">
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Notes personnelles</label>
+        <textarea class="modal-input" id="f-notes" placeholder="Mes impressions..."></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Annuler</button>
+        <button class="btn-save" id="btn-save" onclick="saveWork()">Ajouter</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MangaVault — Ta bibliothèque manga & anime</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js" defer></script>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+
+  <div class="landing">
+    <div class="landing-subtitle">私のコレクション</div>
+    <h1>Manga<span>Vault</span></h1>
+    <p class="landing-desc">
+      Centralise ta collection manga & anime.<br>
+      Découvre de nouvelles œuvres grâce à l'IA.
+    </p>
+    <a href="login.html" class="btn-primary">Commencer</a>
+    <div class="landing-features">
+      <div><span class="icon">📖</span> Suivi manga & anime</div>
+      <div><span class="icon">📊</span> Statistiques détaillées</div>
+      <div><span class="icon">🤖</span> Recommandations IA</div>
+    </div>
+  </div>
+
+  <script>
+    // Si déjà connecté, rediriger vers le dashboard
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) window.location.href = "dashboard.html";
+    })();
+  </script>
+</body>
+</html>
