@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MangaVault — Ta bibliothèque manga & anime</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/config.js" defer></script>
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -26,10 +24,11 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
   <script>
-    // Si déjà connecté, rediriger vers le dashboard
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await sb.auth.getSession();
       if (session) window.location.href = "dashboard.html";
     })();
   </script>

@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Connexion — MangaVault</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/config.js" defer></script>
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -46,15 +44,17 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
   <script>
     // Si déjà connecté, rediriger
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await sb.auth.getSession();
       if (session) window.location.href = "dashboard.html";
     })();
 
-    // Écouter les changements d'auth (callback OAuth / magic link)
-    supabase.auth.onAuthStateChange((event, session) => {
+    // Écouter les changements d'auth
+    sb.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session) {
         window.location.href = "dashboard.html";
       }
@@ -68,7 +68,7 @@
     }
 
     async function loginGoogle() {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await sb.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: SITE_URL + "/dashboard.html" }
       });
@@ -82,7 +82,7 @@
       btn.disabled = true;
       btn.textContent = "Envoi en cours...";
 
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await sb.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: SITE_URL + "/dashboard.html" }
       });

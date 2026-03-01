@@ -19,7 +19,7 @@ let filterType = "all";
 // ============================================
 
 async function initApp() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();
 
   if (!session) {
     window.location.href = "login.html";
@@ -44,9 +44,9 @@ function renderUserInfo() {
   const avatarEl = document.getElementById("user-avatar");
 
   if (avatarUrl) {
-    avatarEl.innerHTML = `<img class="navbar-avatar" src="${avatarUrl}" alt="">`;
+    avatarEl.innerHTML = '<img class="navbar-avatar" src="' + avatarUrl + '" alt="">';
   } else {
-    avatarEl.innerHTML = `<div class="navbar-avatar-placeholder">${name.charAt(0).toUpperCase()}</div>`;
+    avatarEl.innerHTML = '<div class="navbar-avatar-placeholder">' + name.charAt(0).toUpperCase() + '</div>';
   }
 
   document.getElementById("user-name").textContent = name;
@@ -58,15 +58,14 @@ function toggleMenu() {
   dd.style.display = dd.style.display === "none" ? "block" : "none";
 }
 
-// Fermer le menu si on clique ailleurs
-document.addEventListener("click", (e) => {
+document.addEventListener("click", function(e) {
   if (!e.target.closest(".navbar-user")) {
     document.getElementById("user-dropdown").style.display = "none";
   }
 });
 
 async function logout() {
-  await supabase.auth.signOut();
+  await sb.auth.signOut();
   window.location.href = "index.html";
 }
 
@@ -75,7 +74,7 @@ async function logout() {
 // ============================================
 
 async function loadWorks() {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from("mv_works")
     .select("*")
     .order("created_at", { ascending: false });
@@ -93,13 +92,15 @@ async function loadWorks() {
 
 function renderStats() {
   const total = works.length;
-  const mangas = works.filter(w => w.type === "manga").length;
-  const animes = works.filter(w => w.type === "anime").length;
-  const rated = works.filter(w => w.rating);
-  const avg = rated.length ? (rated.reduce((s, w) => s + w.rating, 0) / rated.length).toFixed(1) : "—";
-  const completed = works.filter(w => w.status === "termine").length;
+  const mangas = works.filter(function(w) { return w.type === "manga"; }).length;
+  const animes = works.filter(function(w) { return w.type === "anime"; }).length;
+  const rated = works.filter(function(w) { return w.rating; });
+  const avg = rated.length
+    ? (rated.reduce(function(s, w) { return s + w.rating; }, 0) / rated.length).toFixed(1)
+    : "—";
+  const completed = works.filter(function(w) { return w.status === "termine"; }).length;
 
-  const stats = [
+  var stats = [
     { icon: "本", value: total, label: "Total" },
     { icon: "漫画", value: mangas, label: "Manga" },
     { icon: "アニメ", value: animes, label: "Anime" },
@@ -107,13 +108,13 @@ function renderStats() {
     { icon: "完了", value: completed, label: "Terminés" },
   ];
 
-  document.getElementById("stats-bar").innerHTML = stats.map(s => `
-    <div class="stat-card">
-      <div class="kanji">${s.icon}</div>
-      <div class="value">${s.value}</div>
-      <div class="label">${s.label}</div>
-    </div>
-  `).join("");
+  document.getElementById("stats-bar").innerHTML = stats.map(function(s) {
+    return '<div class="stat-card">' +
+      '<div class="kanji">' + s.icon + '</div>' +
+      '<div class="value">' + s.value + '</div>' +
+      '<div class="label">' + s.label + '</div>' +
+    '</div>';
+  }).join("");
 }
 
 // ============================================
@@ -123,94 +124,95 @@ function renderStats() {
 function setFilter(filterKey, value, btn) {
   if (filterKey === "type") {
     filterType = value;
-    document.querySelectorAll("#type-filters .filter-btn").forEach(b => b.classList.remove("active"));
+    var btns = document.querySelectorAll("#type-filters .filter-btn");
+    for (var i = 0; i < btns.length; i++) btns[i].classList.remove("active");
     btn.classList.add("active");
   }
   renderWorks();
 }
 
 function renderWorks() {
-  const search = document.getElementById("search").value.toLowerCase();
-  const statusFilter = document.getElementById("status-filter").value;
-  const sortBy = document.getElementById("sort-by").value;
+  var search = document.getElementById("search").value.toLowerCase();
+  var statusFilter = document.getElementById("status-filter").value;
+  var sortBy = document.getElementById("sort-by").value;
 
-  let filtered = works
-    .filter(w => filterType === "all" || w.type === filterType)
-    .filter(w => statusFilter === "all" || w.status === statusFilter)
-    .filter(w => w.title.toLowerCase().includes(search));
+  var filtered = works.filter(function(w) {
+    return (filterType === "all" || w.type === filterType) &&
+           (statusFilter === "all" || w.status === statusFilter) &&
+           w.title.toLowerCase().includes(search);
+  });
 
-  filtered.sort((a, b) => {
+  filtered.sort(function(a, b) {
     if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
     if (sortBy === "title") return a.title.localeCompare(b.title);
     return new Date(b.created_at) - new Date(a.created_at);
   });
 
-  const grid = document.getElementById("works-grid");
-  const empty = document.getElementById("empty-state");
+  var grid = document.getElementById("works-grid");
+  var empty = document.getElementById("empty-state");
 
   if (filtered.length > 0) {
     grid.style.display = "grid";
     empty.style.display = "none";
-    grid.innerHTML = filtered.map((w, i) => renderCard(w, i)).join("");
+    grid.innerHTML = filtered.map(function(w, i) { return renderCard(w, i); }).join("");
   } else {
     grid.style.display = "none";
     empty.style.display = "block";
     if (works.length === 0) {
-      empty.innerHTML = `
-        <div class="emoji">📚</div>
-        <p>Ta collection est vide</p>
-        <p class="sub">Commence par ajouter ton premier manga ou anime !</p>
-        <button class="btn-add" onclick="openModal()" style="margin-top:20px;display:inline-flex">
-          + Ajouter ma première œuvre
-        </button>
-      `;
+      empty.innerHTML =
+        '<div class="emoji">📚</div>' +
+        '<p>Ta collection est vide</p>' +
+        '<p class="sub">Commence par ajouter ton premier manga ou anime !</p>' +
+        '<button class="btn-add" onclick="openModal()" style="margin-top:20px;display:inline-flex">' +
+          '+ Ajouter ma première œuvre' +
+        '</button>';
     } else {
-      empty.innerHTML = `
-        <div class="emoji">🔍</div>
-        <p>Aucune œuvre trouvée</p>
-        <p class="sub">Essaie de modifier tes filtres</p>
-      `;
+      empty.innerHTML =
+        '<div class="emoji">🔍</div>' +
+        '<p>Aucune œuvre trouvée</p>' +
+        '<p class="sub">Essaie de modifier tes filtres</p>';
     }
   }
 }
 
 function renderCard(w, i) {
-  const progress = w.type === "manga"
-    ? `${w.chapters_read || "?"} ch.`
-    : `${w.episodes_watched || "?"} ep.`;
+  var progress = w.type === "manga"
+    ? (w.chapters_read || "?") + " ch."
+    : (w.episodes_watched || "?") + " ep.";
 
-  const genres = (w.genres || []).slice(0, 3).map(g => `<span>${g}</span>`).join("");
-  const placeholder = w.type === "manga" ? "📖" : "📺";
+  var genres = (w.genres || []).slice(0, 3).map(function(g) {
+    return '<span>' + g + '</span>';
+  }).join("");
 
-  const image = w.image_url
-    ? `<img class="work-card-image" src="${w.image_url}" alt="${w.title}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+  var placeholder = w.type === "manga" ? "📖" : "📺";
+
+  var image = w.image_url
+    ? '<img class="work-card-image" src="' + w.image_url + '" alt="' + w.title + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
     : "";
 
-  return `
-    <div class="work-card" style="animation:slideUp 0.4s ease ${i * 0.04}s both">
-      <div class="work-card-image-wrap">
-        ${image}
-        <div class="work-card-placeholder" style="${w.image_url ? 'display:none' : ''}">${placeholder}</div>
-        <div class="work-card-gradient"></div>
-        <div class="work-card-badges">
-          <span class="badge badge-${w.type}">${w.type === "manga" ? "漫画" : "アニメ"}</span>
-          <span class="badge badge-status badge-${w.status}">${STATUS_LABELS[w.status] || w.status}</span>
-        </div>
-        <div class="work-card-actions">
-          <button class="work-card-action-btn edit" onclick="editWork('${w.id}')">✎</button>
-          <button class="work-card-action-btn delete" onclick="deleteWork('${w.id}')">✕</button>
-        </div>
-        <div class="work-card-info">
-          <div class="work-card-meta">
-            ★ ${w.rating || "—"}/10
-            <span class="dim">· ${progress}</span>
-          </div>
-          <h3 class="work-card-title">${w.title}</h3>
-          ${genres ? `<div class="work-card-genres">${genres}</div>` : ""}
-        </div>
-      </div>
-    </div>
-  `;
+  return '<div class="work-card" style="animation:slideUp 0.4s ease ' + (i * 0.04) + 's both">' +
+    '<div class="work-card-image-wrap">' +
+      image +
+      '<div class="work-card-placeholder" style="' + (w.image_url ? 'display:none' : '') + '">' + placeholder + '</div>' +
+      '<div class="work-card-gradient"></div>' +
+      '<div class="work-card-badges">' +
+        '<span class="badge badge-' + w.type + '">' + (w.type === "manga" ? "漫画" : "アニメ") + '</span>' +
+        '<span class="badge badge-status badge-' + w.status + '">' + (STATUS_LABELS[w.status] || w.status) + '</span>' +
+      '</div>' +
+      '<div class="work-card-actions">' +
+        '<button class="work-card-action-btn edit" onclick="editWork(\'' + w.id + '\')">✎</button>' +
+        '<button class="work-card-action-btn delete" onclick="deleteWork(\'' + w.id + '\')">✕</button>' +
+      '</div>' +
+      '<div class="work-card-info">' +
+        '<div class="work-card-meta">' +
+          '★ ' + (w.rating || "—") + '/10' +
+          '<span class="dim">· ' + progress + '</span>' +
+        '</div>' +
+        '<h3 class="work-card-title">' + w.title + '</h3>' +
+        (genres ? '<div class="work-card-genres">' + genres + '</div>' : '') +
+      '</div>' +
+    '</div>' +
+  '</div>';
 }
 
 // ============================================
@@ -219,55 +221,49 @@ function renderCard(w, i) {
 
 function initModalWidgets() {
   // Stars
-  const starContainer = document.getElementById("star-rating");
+  var starContainer = document.getElementById("star-rating");
   starContainer.innerHTML = "";
-  for (let i = 1; i <= 10; i++) {
-    const btn = document.createElement("button");
-    btn.textContent = "★";
-    btn.className = formState.rating >= i ? "active" : "";
-    btn.onclick = () => {
-      formState.rating = i;
-      document.getElementById("rating-label").textContent = i + "/10";
-      initModalWidgets();
-    };
-    starContainer.appendChild(btn);
+  for (var i = 1; i <= 10; i++) {
+    (function(rating) {
+      var btn = document.createElement("button");
+      btn.textContent = "★";
+      btn.className = formState.rating >= rating ? "active" : "";
+      btn.onclick = function() {
+        formState.rating = rating;
+        document.getElementById("rating-label").textContent = rating + "/10";
+        initModalWidgets();
+      };
+      starContainer.appendChild(btn);
+    })(i);
   }
 
   // Genres
-  const genreContainer = document.getElementById("genre-tags");
-  genreContainer.innerHTML = GENRES.map(g => `
-    <button class="genre-tag ${formState.genres.includes(g) ? "active" : ""}"
-      onclick="toggleGenre('${g}')">${g}</button>
-  `).join("");
+  var genreContainer = document.getElementById("genre-tags");
+  genreContainer.innerHTML = GENRES.map(function(g) {
+    return '<button class="genre-tag ' + (formState.genres.indexOf(g) >= 0 ? "active" : "") + '" ' +
+      'onclick="toggleGenre(\'' + g + '\')">' + g + '</button>';
+  }).join("");
 
-  // Progress fields
   updateProgressFields();
 }
 
 function updateProgressFields() {
-  const container = document.getElementById("progress-fields");
+  var container = document.getElementById("progress-fields");
+  var progressVal = document.getElementById("f-progress") ? document.getElementById("f-progress").value : "";
+  var totalVal = document.getElementById("f-total") ? document.getElementById("f-total").value : "";
+
   if (formState.type === "manga") {
-    container.innerHTML = `
-      <div>
-        <label class="modal-label">Chapitres lus</label>
-        <input class="modal-input" type="number" id="f-progress" placeholder="0" value="${document.getElementById("f-progress")?.value || ""}">
-      </div>
-      <div>
-        <label class="modal-label">Chapitres total</label>
-        <input class="modal-input" type="number" id="f-total" placeholder="?" value="${document.getElementById("f-total")?.value || ""}">
-      </div>
-    `;
+    container.innerHTML =
+      '<div><label class="modal-label">Chapitres lus</label>' +
+      '<input class="modal-input" type="number" id="f-progress" placeholder="0" value="' + progressVal + '"></div>' +
+      '<div><label class="modal-label">Chapitres total</label>' +
+      '<input class="modal-input" type="number" id="f-total" placeholder="?" value="' + totalVal + '"></div>';
   } else {
-    container.innerHTML = `
-      <div>
-        <label class="modal-label">Épisodes vus</label>
-        <input class="modal-input" type="number" id="f-progress" placeholder="0" value="${document.getElementById("f-progress")?.value || ""}">
-      </div>
-      <div>
-        <label class="modal-label">Épisodes total</label>
-        <input class="modal-input" type="number" id="f-total" placeholder="?" value="${document.getElementById("f-total")?.value || ""}">
-      </div>
-    `;
+    container.innerHTML =
+      '<div><label class="modal-label">Épisodes vus</label>' +
+      '<input class="modal-input" type="number" id="f-progress" placeholder="0" value="' + progressVal + '"></div>' +
+      '<div><label class="modal-label">Épisodes total</label>' +
+      '<input class="modal-input" type="number" id="f-total" placeholder="?" value="' + totalVal + '"></div>';
   }
 }
 
@@ -279,13 +275,14 @@ function setType(type) {
 }
 
 function toggleGenre(genre) {
-  const idx = formState.genres.indexOf(genre);
+  var idx = formState.genres.indexOf(genre);
   if (idx >= 0) formState.genres.splice(idx, 1);
   else formState.genres.push(genre);
   initModalWidgets();
 }
 
-function openModal(work = null) {
+function openModal(work) {
+  work = work || null;
   editingId = work ? work.id : null;
 
   if (work) {
@@ -297,7 +294,7 @@ function openModal(work = null) {
     document.getElementById("f-notes").value = work.notes || "";
     formState.type = work.type || "manga";
     formState.rating = work.rating || 7;
-    formState.genres = [...(work.genres || [])];
+    formState.genres = (work.genres || []).slice();
   } else {
     document.getElementById("modal-title").textContent = "Ajouter une œuvre";
     document.getElementById("btn-save").textContent = "Ajouter";
@@ -316,8 +313,8 @@ function openModal(work = null) {
 
   // Set progress values after fields are created
   if (work) {
-    const progressEl = document.getElementById("f-progress");
-    const totalEl = document.getElementById("f-total");
+    var progressEl = document.getElementById("f-progress");
+    var totalEl = document.getElementById("f-total");
     if (work.type === "manga") {
       if (progressEl) progressEl.value = work.chapters_read || "";
       if (totalEl) totalEl.value = work.chapters_total || "";
@@ -336,7 +333,7 @@ function closeModal() {
 }
 
 function editWork(id) {
-  const work = works.find(w => w.id === id);
+  var work = works.find(function(w) { return w.id === id; });
   if (work) openModal(work);
 }
 
@@ -345,18 +342,18 @@ function editWork(id) {
 // ============================================
 
 async function saveWork() {
-  const title = document.getElementById("f-title").value.trim();
+  var title = document.getElementById("f-title").value.trim();
   if (!title) return;
 
-  const btn = document.getElementById("btn-save");
+  var btn = document.getElementById("btn-save");
   btn.disabled = true;
   btn.textContent = "Sauvegarde...";
 
-  const progress = parseInt(document.getElementById("f-progress")?.value) || 0;
-  const total = parseInt(document.getElementById("f-total")?.value) || null;
+  var progress = parseInt(document.getElementById("f-progress")?.value) || 0;
+  var total = parseInt(document.getElementById("f-total")?.value) || null;
 
-  const payload = {
-    title,
+  var payload = {
+    title: title,
     type: formState.type,
     status: document.getElementById("f-status").value,
     rating: formState.rating,
@@ -369,10 +366,10 @@ async function saveWork() {
     episodes_total: formState.type === "anime" ? total : null,
   };
 
-  let error;
+  var error;
 
   if (editingId) {
-    const result = await supabase
+    var result = await sb
       .from("mv_works")
       .update(payload)
       .eq("id", editingId)
@@ -380,11 +377,11 @@ async function saveWork() {
       .single();
     error = result.error;
     if (!error && result.data) {
-      works = works.map(w => w.id === editingId ? result.data : w);
+      works = works.map(function(w) { return w.id === editingId ? result.data : w; });
     }
   } else {
     payload.user_id = currentUser.id;
-    const result = await supabase
+    var result = await sb
       .from("mv_works")
       .insert(payload)
       .select()
@@ -411,13 +408,13 @@ async function saveWork() {
 async function deleteWork(id) {
   if (!confirm("Supprimer cette œuvre ?")) return;
 
-  const { error } = await supabase
+  var result = await sb
     .from("mv_works")
     .delete()
     .eq("id", id);
 
-  if (!error) {
-    works = works.filter(w => w.id !== id);
+  if (!result.error) {
+    works = works.filter(function(w) { return w.id !== id; });
     renderStats();
     renderWorks();
   }
