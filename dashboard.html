@@ -10,7 +10,6 @@
   <div class="ambient-bg"></div>
   <div id="loading" class="loading">Chargement...</div>
   <div id="app" style="display:none">
-    <!-- Navbar -->
     <nav class="navbar">
       <a href="dashboard.html" class="navbar-brand">
         <h1>Manga<span>Vault</span></h1>
@@ -81,115 +80,120 @@
         <h2 id="modal-manga-title">Ajouter un manga 漫画</h2>
       </div>
 
-      <div class="modal-field">
-        <label class="modal-label">Titre *</label>
-        <input class="modal-input" id="fm-title" placeholder="Ex: Chainsaw Man">
+      <!-- SEARCH STEP -->
+      <div id="fm-step-search" class="modal-field">
+        <label class="modal-label">Rechercher un manga</label>
+        <div class="search-input-wrap">
+          <input class="modal-input" id="fm-search" placeholder="Tape un titre... ex: chainsow man" oninput="onMangaSearch()">
+          <div id="fm-search-spinner" class="search-spinner" style="display:none"></div>
+        </div>
+        <div id="fm-search-results" class="search-results" style="display:none"></div>
+        <button class="btn-manual-entry" id="fm-manual-btn" onclick="showManualMangaForm()" style="display:none">
+          Saisie manuelle →
+        </button>
       </div>
 
-      <div class="modal-row">
-        <div>
-          <label class="modal-label">Auteur</label>
-          <input class="modal-input" id="fm-author" placeholder="Ex: Tatsuki Fujimoto">
-        </div>
-        <div>
-          <label class="modal-label">Format</label>
-          <select class="modal-input" id="fm-format">
-            <option value="">—</option>
-            <option value="shonen">Shōnen</option>
-            <option value="seinen">Seinen</option>
-            <option value="shojo">Shōjo</option>
-            <option value="josei">Josei</option>
-          </select>
-        </div>
-      </div>
+      <!-- FORM (hidden until selection) -->
+      <div id="fm-form" style="display:none">
+        <!-- Preview card -->
+        <div id="fm-preview" class="search-preview" style="display:none"></div>
 
-      <div class="modal-row">
-        <div>
-          <label class="modal-label">Année de publication</label>
-          <input class="modal-input" type="number" id="fm-year" placeholder="2018">
+        <div class="modal-field">
+          <label class="modal-label">Titre</label>
+          <input class="modal-input" id="fm-title" placeholder="Titre du manga">
         </div>
-        <div>
-          <label class="modal-label">Statut de publication</label>
-          <select class="modal-input" id="fm-pub-status">
-            <option value="en_cours">En cours</option>
-            <option value="termine">Terminé</option>
-            <option value="en_pause">En pause</option>
-          </select>
-        </div>
-      </div>
 
-      <div class="modal-row">
-        <div>
-          <label class="modal-label">Statut de lecture</label>
-          <select class="modal-input" id="fm-status">
-            <option value="en_cours">En cours</option>
-            <option value="termine">Terminé</option>
-            <option value="en_pause">En pause</option>
-            <option value="abandonne">Abandonné</option>
-            <option value="planifie">Planifié</option>
-          </select>
-        </div>
-        <div>
-          <label class="modal-label">Note</label>
-          <div class="star-rating" id="fm-stars"></div>
-          <span class="rating-display" id="fm-rating-label">7/10</span>
-        </div>
-      </div>
-
-      <div class="modal-field">
-        <label class="modal-label">Genres</label>
-        <div class="genre-tags" id="fm-genres"></div>
-      </div>
-
-      <div class="modal-row">
-        <div>
-          <label class="modal-label">Chapitres lus</label>
-          <input class="modal-input" type="number" id="fm-chapters" placeholder="0">
-        </div>
-        <div>
-          <label class="modal-label">Chapitres total</label>
-          <input class="modal-input" type="number" id="fm-chapters-total" placeholder="?">
-        </div>
-      </div>
-
-      <div class="modal-row">
-        <div>
-          <label class="modal-label">Volumes lus</label>
-          <input class="modal-input" type="number" id="fm-volumes" placeholder="0">
-        </div>
-        <div>
-          <label class="modal-label">Volumes total</label>
-          <input class="modal-input" type="number" id="fm-volumes-total" placeholder="?">
-        </div>
-      </div>
-
-      <div class="modal-field">
-        <label class="modal-label">Disponible en français ?</label>
-        <div class="fr-row">
-          <label class="toggle-label">
-            <input type="checkbox" id="fm-fr" onchange="toggleFrField()">
-            <span class="toggle-text">Oui</span>
-          </label>
-          <div id="fm-fr-wrap" style="display:none;margin-top:8px">
-            <label class="modal-label">Jusqu'au tome</label>
-            <input class="modal-input" type="number" id="fm-fr-volumes" placeholder="Ex: 12" style="width:160px">
+        <div class="modal-row">
+          <div>
+            <label class="modal-label">Auteur</label>
+            <input class="modal-input" id="fm-author" placeholder="Auteur">
+          </div>
+          <div>
+            <label class="modal-label">Format</label>
+            <select class="modal-input" id="fm-format">
+              <option value="">—</option>
+              <option value="shonen">Shōnen</option>
+              <option value="seinen">Seinen</option>
+              <option value="shojo">Shōjo</option>
+              <option value="josei">Josei</option>
+            </select>
           </div>
         </div>
-      </div>
 
-      <div class="modal-field">
-        <label class="modal-label">Image URL</label>
-        <input class="modal-input" id="fm-image" placeholder="https://...">
-      </div>
+        <div class="modal-row">
+          <div>
+            <label class="modal-label">Année de publication</label>
+            <input class="modal-input" type="number" id="fm-year" placeholder="2018">
+          </div>
+          <div>
+            <label class="modal-label">Statut de publication</label>
+            <select class="modal-input" id="fm-pub-status">
+              <option value="en_cours">En cours</option>
+              <option value="termine">Terminé</option>
+              <option value="en_pause">En pause</option>
+            </select>
+          </div>
+        </div>
 
-      <div class="modal-field">
-        <label class="modal-label">Notes personnelles</label>
-        <textarea class="modal-input" id="fm-notes" placeholder="Mes impressions..."></textarea>
-      </div>
+        <div class="modal-row">
+          <div>
+            <label class="modal-label">Statut de lecture</label>
+            <select class="modal-input" id="fm-status">
+              <option value="en_cours">En cours</option>
+              <option value="termine">Terminé</option>
+              <option value="en_pause">En pause</option>
+              <option value="abandonne">Abandonné</option>
+              <option value="planifie">Planifié</option>
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Note</label>
+            <div class="star-rating" id="fm-stars"></div>
+            <span class="rating-display" id="fm-rating-label">7/10</span>
+          </div>
+        </div>
 
-      <div class="modal-actions">
-        <button class="btn-cancel" onclick="closeModal()">Annuler</button>
-        <button class="btn-save btn-save-manga" id="btn-save-manga" onclick="saveWork('manga')">Ajouter</button>
+        <div class="modal-field">
+          <label class="modal-label">Genres</label>
+          <div class="genre-tags" id="fm-genres"></div>
+        </div>
+
+        <div class="modal-row">
+          <div>
+            <label class="modal-label">Volumes lus</label>
+            <input class="modal-input" type="number" id="fm-volumes" placeholder="0">
+          </div>
+          <div>
+            <label class="modal-label">Volumes total (VO)</label>
+            <input class="modal-input" type="number" id="fm-volumes-total" placeholder="?">
+          </div>
+        </div>
+
+        <div class="modal-row">
+          <div>
+            <label class="modal-label">Volumes dispo VO</label>
+            <input class="modal-input" type="number" id="fm-volumes-vo" placeholder="?">
+          </div>
+          <div>
+            <label class="modal-label">Volumes dispo VF</label>
+            <input class="modal-input" type="number" id="fm-fr-volumes" placeholder="?">
+          </div>
+        </div>
+
+        <div class="modal-field">
+          <label class="modal-label">Image URL</label>
+          <input class="modal-input" id="fm-image" placeholder="https://...">
+        </div>
+
+        <div class="modal-field">
+          <label class="modal-label">Notes personnelles</label>
+          <textarea class="modal-input" id="fm-notes" placeholder="Mes impressions..."></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick="closeModal()">Annuler</button>
+          <button class="btn-save btn-save-manga" id="btn-save-manga" onclick="saveWork('manga')">Ajouter</button>
+        </div>
       </div>
     </div>
   </div>
