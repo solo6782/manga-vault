@@ -93,9 +93,8 @@
         </button>
       </div>
 
-      <!-- FORM (hidden until selection) -->
+      <!-- FORM -->
       <div id="fm-form" style="display:none">
-        <!-- Preview card -->
         <div id="fm-preview" class="search-preview" style="display:none"></div>
 
         <div class="modal-field">
@@ -164,20 +163,20 @@
             <input class="modal-input" type="number" id="fm-volumes" placeholder="0">
           </div>
           <div>
-            <label class="modal-label">Volumes total (VO)</label>
-            <input class="modal-input" type="number" id="fm-volumes-total" placeholder="?">
+            <label class="modal-label">Volumes VO (Japon)</label>
+            <input class="modal-input" type="number" id="fm-volumes-vo" placeholder="?">
           </div>
         </div>
 
-        <div class="modal-row">
-          <div>
-            <label class="modal-label">Volumes dispo VO</label>
-            <input class="modal-input" type="number" id="fm-volumes-vo" placeholder="?">
-          </div>
-          <div>
-            <label class="modal-label">Volumes dispo VF</label>
+        <div class="modal-field">
+          <label class="modal-label">Volumes VF (France)</label>
+          <div class="vf-field-row">
             <input class="modal-input" type="number" id="fm-fr-volumes" placeholder="?">
+            <button class="btn-search-vf" id="fm-vf-btn" onclick="searchVF()" title="Rechercher automatiquement">
+              🔍 Chercher
+            </button>
           </div>
+          <div id="fm-vf-status" class="vf-status" style="display:none"></div>
         </div>
 
         <div class="modal-field">

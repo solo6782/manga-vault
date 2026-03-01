@@ -73,27 +73,20 @@ async function loadWorks() {
 function onMangaSearch() {
   var query = document.getElementById("fm-search").value.trim();
   clearTimeout(searchTimeout);
-
   if (query.length < 2) {
     document.getElementById("fm-search-results").style.display = "none";
     document.getElementById("fm-manual-btn").style.display = "none";
     return;
   }
-
   document.getElementById("fm-search-spinner").style.display = "block";
-
-  searchTimeout = setTimeout(function() {
-    searchManga(query);
-  }, 500); // debounce 500ms
+  searchTimeout = setTimeout(function() { searchManga(query); }, 500);
 }
 
 async function searchManga(query) {
   try {
     var response = await fetch("https://api.jikan.moe/v4/manga?q=" + encodeURIComponent(query) + "&limit=6&order_by=popularity&sort=asc");
     var data = await response.json();
-
     document.getElementById("fm-search-spinner").style.display = "none";
-
     if (data.data && data.data.length > 0) {
       renderSearchResults(data.data);
     } else {
@@ -112,32 +105,21 @@ function renderSearchResults(results) {
   var container = document.getElementById("fm-search-results");
   container.innerHTML = results.map(function(m) {
     var img = (m.images && m.images.jpg && m.images.jpg.small_image_url) || "";
-    var author = "";
-    if (m.authors && m.authors.length > 0) {
-      author = m.authors[0].name || "";
-    }
-    var year = m.published && m.published.prop && m.published.prop.from ? m.published.prop.from.year : "";
+    var author = (m.authors && m.authors.length > 0) ? m.authors[0].name || "" : "";
+    var year = (m.published && m.published.prop && m.published.prop.from) ? m.published.prop.from.year : "";
     var vols = m.volumes || "?";
     var status = m.status || "";
-
-    return '<button class="search-result-item" onclick=\'selectManga(' + JSON.stringify(m.mal_id) + ')\'>' +
+    return '<button class="search-result-item" onclick="selectManga(' + m.mal_id + ')">' +
       '<div class="search-result-img">' + (img ? '<img src="' + img + '" alt="">' : '<span>📖</span>') + '</div>' +
       '<div class="search-result-info">' +
         '<div class="search-result-title">' + (m.title || "") + '</div>' +
-        '<div class="search-result-meta">' +
-          (author ? author + ' · ' : '') +
-          (year ? year + ' · ' : '') +
-          vols + ' vol.' +
-          (status ? ' · ' + status : '') +
-        '</div>' +
-      '</div>' +
-    '</button>';
+        '<div class="search-result-meta">' + (author ? author + ' · ' : '') + (year ? year + ' · ' : '') + vols + ' vol.' + (status ? ' · ' + status : '') + '</div>' +
+      '</div></button>';
   }).join("");
   container.style.display = "block";
 }
 
 async function selectManga(malId) {
-  // Fetch full details
   document.getElementById("fm-search-results").style.display = "none";
   document.getElementById("fm-search-spinner").style.display = "block";
 
@@ -145,18 +127,19 @@ async function selectManga(malId) {
     var response = await fetch("https://api.jikan.moe/v4/manga/" + malId + "/full");
     var data = await response.json();
     var m = data.data;
-
     if (!m) return;
 
-    // Fill form
+    // Title
     document.getElementById("fm-title").value = m.title || "";
-    document.getElementById("fm-year").value = (m.published && m.published.prop && m.published.prop.from) ? m.published.prop.from.year || "" : "";
-    document.getElementById("fm-volumes-vo").value = m.volumes || "";
-    document.getElementById("fm-volumes-total").value = m.volumes || "";
 
-    // Author
+    // Year
+    document.getElementById("fm-year").value = (m.published && m.published.prop && m.published.prop.from) ? m.published.prop.from.year || "" : "";
+
+    // Volumes VO
+    document.getElementById("fm-volumes-vo").value = m.volumes || "";
+
+    // Author (reverse "LastName, FirstName")
     if (m.authors && m.authors.length > 0) {
-      // Jikan returns "LastName, FirstName" - reverse it
       var authorName = m.authors[0].name || "";
       var parts = authorName.split(", ");
       if (parts.length === 2) authorName = parts[1] + " " + parts[0];
@@ -167,10 +150,10 @@ async function selectManga(malId) {
     var format = "";
     if (m.demographics && m.demographics.length > 0) {
       var demo = m.demographics[0].name.toLowerCase();
-      if (demo === "shounen" || demo === "shonen") format = "shonen";
-      else if (demo === "seinen") format = "seinen";
-      else if (demo === "shoujo" || demo === "shojo") format = "shojo";
-      else if (demo === "josei") format = "josei";
+      if (demo.indexOf("shonen") >= 0 || demo.indexOf("shounen") >= 0) format = "shonen";
+      else if (demo.indexOf("seinen") >= 0) format = "seinen";
+      else if (demo.indexOf("shojo") >= 0 || demo.indexOf("shoujo") >= 0) format = "shojo";
+      else if (demo.indexOf("josei") >= 0) format = "josei";
     }
     document.getElementById("fm-format").value = format;
 
@@ -187,16 +170,13 @@ async function selectManga(malId) {
     if (m.genres) {
       m.genres.forEach(function(g) {
         var name = g.name;
-        // Map Jikan genre names to our genre list
-        if (name === "Sci-Fi" || name === "Science Fiction") name = "Sci-Fi";
+        if (name === "Science Fiction") name = "Sci-Fi";
         if (GENRES.indexOf(name) >= 0) mangaForm.genres.push(name);
       });
     }
     if (m.themes) {
       m.themes.forEach(function(t) {
-        if (GENRES.indexOf(t.name) >= 0 && mangaForm.genres.indexOf(t.name) < 0) {
-          mangaForm.genres.push(t.name);
-        }
+        if (GENRES.indexOf(t.name) >= 0 && mangaForm.genres.indexOf(t.name) < 0) mangaForm.genres.push(t.name);
       });
     }
 
@@ -208,18 +188,19 @@ async function selectManga(malId) {
     // Show preview
     showMangaPreview(m);
 
-    // Show form
+    // Show form, hide search
     document.getElementById("fm-step-search").style.display = "none";
     document.getElementById("fm-form").style.display = "block";
-
     buildStars("fm-stars", mangaForm);
     buildGenres("fm-genres", mangaForm);
 
+    // Auto-search VF in background
+    setTimeout(function() { searchVF(); }, 300);
+
   } catch (err) {
     console.error("Jikan detail error:", err);
-    alert("Erreur lors de la récupération des détails. Essaie la saisie manuelle.");
+    alert("Erreur lors de la récupération des détails.");
   }
-
   document.getElementById("fm-search-spinner").style.display = "none";
 }
 
@@ -230,6 +211,7 @@ function showMangaPreview(m) {
     var parts = (m.authors[0].name || "").split(", ");
     author = parts.length === 2 ? parts[1] + " " + parts[0] : parts[0];
   }
+  var year = (m.published && m.published.prop && m.published.prop.from && m.published.prop.from.year) ? m.published.prop.from.year : "";
 
   var preview = document.getElementById("fm-preview");
   preview.innerHTML =
@@ -237,11 +219,10 @@ function showMangaPreview(m) {
       (img ? '<img src="' + img + '" alt="" class="preview-img">' : '') +
       '<div class="preview-info">' +
         '<div class="preview-title">' + (m.title || "") + '</div>' +
-        '<div class="preview-meta">' + author + (m.published && m.published.prop && m.published.prop.from && m.published.prop.from.year ? ' · ' + m.published.prop.from.year : '') + '</div>' +
+        '<div class="preview-meta">' + author + (year ? ' · ' + year : '') + '</div>' +
         '<div class="preview-meta">Score MAL: ' + (m.score || "N/A") + ' · ' + (m.volumes || "?") + ' volumes</div>' +
         '<button class="btn-change-manga" onclick="resetMangaSearch()">Changer ↺</button>' +
-      '</div>' +
-    '</div>';
+      '</div></div>';
   preview.style.display = "block";
 }
 
@@ -260,7 +241,6 @@ function resetMangaSearch() {
   document.getElementById("fm-search-results").style.display = "none";
   document.getElementById("fm-manual-btn").style.display = "none";
   document.getElementById("fm-preview").style.display = "none";
-  // Reset form fields
   document.getElementById("fm-title").value = "";
   document.getElementById("fm-author").value = "";
   document.getElementById("fm-format").value = "";
@@ -268,13 +248,116 @@ function resetMangaSearch() {
   document.getElementById("fm-pub-status").value = "en_cours";
   document.getElementById("fm-status").value = "en_cours";
   document.getElementById("fm-volumes").value = "";
-  document.getElementById("fm-volumes-total").value = "";
   document.getElementById("fm-volumes-vo").value = "";
   document.getElementById("fm-fr-volumes").value = "";
   document.getElementById("fm-image").value = "";
   document.getElementById("fm-notes").value = "";
+  document.getElementById("fm-vf-status").style.display = "none";
   mangaForm.rating = 7;
   mangaForm.genres = [];
+}
+
+// ============================================
+// VF SEARCH (manga-news.com via CORS proxy)
+// ============================================
+
+async function searchVF() {
+  var title = document.getElementById("fm-title").value.trim();
+  if (!title) return;
+
+  var statusEl = document.getElementById("fm-vf-status");
+  var btn = document.getElementById("fm-vf-btn");
+  btn.disabled = true;
+  btn.textContent = "⏳";
+  statusEl.style.display = "block";
+  statusEl.className = "vf-status searching";
+  statusEl.innerHTML = "Recherche VF en cours...";
+
+  var searchUrl = "https://www.manga-news.com/index.php/recherche?query=" + encodeURIComponent(title);
+  var found = false;
+
+  // Try manga-news via CORS proxy
+  try {
+    var proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(searchUrl);
+    var response = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+    var data = await response.json();
+
+    if (data.contents) {
+      // Parse the HTML to find volume count
+      // manga-news shows results like "Série (X / Y tomes)" or "X tomes"
+      var html = data.contents;
+
+      // Try to find the first matching result block that contains our title
+      var titleLower = title.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+      // Look for patterns like "X tomes" or "X / Y tomes" near the title
+      // Pattern 1: "X tomes parus"
+      // Pattern 2: "X / Y tomes"
+      // Pattern 3: just "X tomes"
+      var patterns = [
+        /(\d+)\s*\/\s*(\d+)\s*tomes?/gi,
+        /(\d+)\s*tomes?\s*(?:parus?|sortis?|disponibles?)/gi,
+        /(\d+)\s*tomes?/gi
+      ];
+
+      for (var p = 0; p < patterns.length && !found; p++) {
+        var matches = html.match(patterns[p]);
+        if (matches && matches.length > 0) {
+          // Get the first meaningful match
+          for (var mi = 0; mi < matches.length && !found; mi++) {
+            var nums = matches[mi].match(/\d+/g);
+            if (nums && nums.length > 0) {
+              var volCount = parseInt(nums[nums.length - 1]) || parseInt(nums[0]);
+              if (volCount > 0 && volCount < 500) {
+                document.getElementById("fm-fr-volumes").value = volCount;
+                statusEl.innerHTML = '✓ Trouvé : ~' + volCount + ' tomes VF · <a href="' + searchUrl + '" target="_blank">Vérifier ↗</a>';
+                statusEl.className = "vf-status success";
+                found = true;
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.log("manga-news fetch failed:", err);
+  }
+
+  // Fallback: try Nautiljon
+  if (!found) {
+    try {
+      var nautUrl = "https://www.nautiljon.com/mangas/?q=" + encodeURIComponent(title);
+      var proxyUrl2 = "https://api.allorigins.win/get?url=" + encodeURIComponent(nautUrl);
+      var response2 = await fetch(proxyUrl2, { signal: AbortSignal.timeout(8000) });
+      var data2 = await response2.json();
+
+      if (data2.contents) {
+        var matches2 = data2.contents.match(/(\d+)\s*tomes?/gi);
+        if (matches2 && matches2.length > 0) {
+          var nums2 = matches2[0].match(/\d+/);
+          if (nums2) {
+            var volCount2 = parseInt(nums2[0]);
+            if (volCount2 > 0 && volCount2 < 500) {
+              document.getElementById("fm-fr-volumes").value = volCount2;
+              statusEl.innerHTML = '✓ Trouvé : ~' + volCount2 + ' tomes VF · <a href="' + nautUrl + '" target="_blank">Vérifier ↗</a>';
+              statusEl.className = "vf-status success";
+              found = true;
+            }
+          }
+        }
+      }
+    } catch (err2) {
+      console.log("nautiljon fetch failed:", err2);
+    }
+  }
+
+  if (!found) {
+    statusEl.innerHTML = 'Pas trouvé auto. <a href="' + searchUrl + '" target="_blank">Chercher sur Manga-News ↗</a>';
+    statusEl.className = "vf-status not-found";
+  }
+
+  btn.disabled = false;
+  btn.textContent = "🔍 Chercher";
 }
 
 // ============================================
@@ -351,7 +434,7 @@ function renderWorks() {
 function renderCard(w, i) {
   var isManga = w.type === "manga";
   var progress = isManga
-    ? (w.volumes_read || "?") + " vol."
+    ? (w.volumes_read || "?") + "/" + (w.volumes_vo || "?") + " vol."
     : (w.episodes_watched || "?") + " ep.";
 
   var subtitle = "";
@@ -404,7 +487,7 @@ function renderCard(w, i) {
 }
 
 // ============================================
-// STARS & GENRES HELPERS
+// STARS & GENRES
 // ============================================
 
 function buildStars(containerId, formObj) {
@@ -456,13 +539,11 @@ function openMangaModal(work) {
   var btnEl = document.getElementById("btn-save-manga");
 
   if (work) {
-    // Edit mode: skip search, show form directly
     titleEl.textContent = "Modifier un manga 漫画";
     btnEl.textContent = "Sauvegarder";
     document.getElementById("fm-step-search").style.display = "none";
     document.getElementById("fm-form").style.display = "block";
     document.getElementById("fm-preview").style.display = "none";
-
     document.getElementById("fm-title").value = work.title || "";
     document.getElementById("fm-author").value = work.author || "";
     document.getElementById("fm-format").value = work.format || "";
@@ -470,19 +551,19 @@ function openMangaModal(work) {
     document.getElementById("fm-pub-status").value = work.publication_status || "en_cours";
     document.getElementById("fm-status").value = work.status || "en_cours";
     document.getElementById("fm-volumes").value = work.volumes_read || "";
-    document.getElementById("fm-volumes-total").value = work.volumes_total || "";
     document.getElementById("fm-volumes-vo").value = work.volumes_vo || "";
     document.getElementById("fm-fr-volumes").value = work.fr_volumes || "";
     document.getElementById("fm-image").value = work.image_url || "";
     document.getElementById("fm-notes").value = work.notes || "";
+    document.getElementById("fm-vf-status").style.display = "none";
     mangaForm.rating = work.rating || 7;
     mangaForm.genres = (work.genres || []).slice();
   } else {
-    // Add mode: show search first
     titleEl.textContent = "Ajouter un manga 漫画";
     btnEl.textContent = "Ajouter";
     document.getElementById("fm-step-search").style.display = "block";
     document.getElementById("fm-form").style.display = "none";
+    document.getElementById("fm-vf-status").style.display = "none";
     resetMangaSearch();
     mangaForm.rating = 7;
     mangaForm.genres = [];
@@ -572,7 +653,6 @@ async function saveWork(type) {
       rating: mangaForm.rating,
       genres: mangaForm.genres,
       volumes_read: parseInt(document.getElementById("fm-volumes").value) || 0,
-      volumes_total: parseInt(document.getElementById("fm-volumes-total").value) || null,
       volumes_vo: parseInt(document.getElementById("fm-volumes-vo").value) || null,
       fr_volumes: parseInt(document.getElementById("fm-fr-volumes").value) || null,
       available_fr: !!parseInt(document.getElementById("fm-fr-volumes").value),
