@@ -258,7 +258,7 @@ function resetMangaSearch() {
 }
 
 // ============================================
-// VF SEARCH via MangaUpdates API + Nautiljon link
+// VF SEARCH via Cloudflare Function → Nautiljon
 // ============================================
 
 async function searchVF() {
@@ -271,76 +271,38 @@ async function searchVF() {
   btn.textContent = "⏳";
   statusEl.style.display = "block";
   statusEl.className = "vf-status searching";
-  statusEl.innerHTML = "Recherche VF sur MangaUpdates...";
-
-  var found = false;
-  var nautSlug = title.toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[:'!?.,;()\[\]{}]/g, " ").replace(/\s+/g, " ").trim().replace(/\s/g, "+");
-  var nautUrl = "https://www.nautiljon.com/mangas/?q=" + encodeURIComponent(title);
+  statusEl.innerHTML = "Recherche VF sur Nautiljon...";
 
   try {
-    // Step 1: Search on MangaUpdates
-    var searchResp = await fetch("https://api.mangaupdates.com/v1/series/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ search: title })
-    });
-    var searchData = await searchResp.json();
+    var resp = await fetch("/api/vf?title=" + encodeURIComponent(title));
+    var data = await resp.json();
+    console.log("VF result:", data);
 
-    if (searchData.results && searchData.results.length > 0) {
-      var seriesId = searchData.results[0].record.series_id;
-      console.log("VF: MangaUpdates series ID:", seriesId);
+    if (data.vf_volumes) {
+      document.getElementById("fm-fr-volumes").value = data.vf_volumes;
+      var info = '✓ ' + data.vf_volumes + ' tomes VF';
+      if (data.publisher) info += ' (' + data.publisher + ')';
+      if (data.source) info += ' · <a href="' + data.source + '" target="_blank">Nautiljon ↗</a>';
+      statusEl.innerHTML = info;
+      statusEl.className = "vf-status success";
 
-      // Step 2: Get series details
-      var detailResp = await fetch("https://api.mangaupdates.com/v1/series/" + seriesId);
-      var detail = await detailResp.json();
-
-      console.log("VF: MangaUpdates detail:", JSON.stringify(detail.publishers || []).substring(0, 500));
-
-      // Check for French publisher
-      var frPublishers = [];
-      if (detail.publishers && detail.publishers.length > 0) {
-        detail.publishers.forEach(function(p) {
-          var name = (p.publisher_name || "").toLowerCase();
-          var type = (p.type || "").toLowerCase();
-          // French manga publishers
-          var frNames = ["kana", "pika", "ki-oon", "kioon", "glenat", "glé nat", "kurokawa",
-            "kazé", "kaze", "delcourt", "tonkam", "soleil", "panini", "meian", "mangetsu",
-            "akata", "doki-doki", "komikku", "ototo", "noeve", "mana books", "crunchyroll"];
-          for (var i = 0; i < frNames.length; i++) {
-            if (name.indexOf(frNames[i]) >= 0) {
-              frPublishers.push(p.publisher_name);
-            }
-          }
-        });
+      // Bonus: update VO if empty
+      if (data.vo_volumes && !document.getElementById("fm-volumes-vo").value) {
+        document.getElementById("fm-volumes-vo").value = data.vo_volumes;
       }
-
-      if (frPublishers.length > 0) {
-        // Found French publisher!
-        var pubName = frPublishers[0];
-        var totalVols = detail.latest_chapter;
-
-        // Check status info for volume count
-        var statusInfo = detail.status || "";
-        var volMatch = statusInfo.match(/(\d+)\s*Volumes/i);
-        var voVols = volMatch ? parseInt(volMatch[1]) : null;
-
-        statusEl.className = "vf-status success";
-        statusEl.innerHTML = '✓ Licencié FR par <strong>' + pubName + '</strong>' +
-          (voVols ? ' · ' + voVols + ' volumes' : '') +
-          ' · <a href="' + nautUrl + '" target="_blank">Volumes VF sur Nautiljon ↗</a>';
-        found = true;
-      }
+    } else if (data.publisher) {
+      statusEl.innerHTML = '✓ Licencié par ' + data.publisher + ' · <a href="' + (data.source || "#") + '" target="_blank">Voir Nautiljon ↗</a>';
+      statusEl.className = "vf-status success";
+    } else {
+      var nautUrl = "https://www.nautiljon.com/mangas/?q=" + encodeURIComponent(title);
+      statusEl.innerHTML = 'Pas trouvé. <a href="' + nautUrl + '" target="_blank">Vérifier sur Nautiljon ↗</a>';
+      statusEl.className = "vf-status not-found";
     }
   } catch (err) {
-    console.log("MangaUpdates error:", err);
-  }
-
-  if (!found) {
-    var mnUrl = "https://www.manga-news.com/index.php/recherche?query=" + encodeURIComponent(title);
+    console.error("VF search error:", err);
+    var nautUrl = "https://www.nautiljon.com/mangas/?q=" + encodeURIComponent(title);
+    statusEl.innerHTML = 'Erreur. <a href="' + nautUrl + '" target="_blank">Vérifier sur Nautiljon ↗</a>';
     statusEl.className = "vf-status not-found";
-    statusEl.innerHTML = 'Vérifie les tomes VF : <a href="' + nautUrl + '" target="_blank">Nautiljon ↗</a> · <a href="' + mnUrl + '" target="_blank">Manga-News ↗</a>';
   }
 
   btn.disabled = false;
