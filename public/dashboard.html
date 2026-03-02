@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ma collection — MangaVault</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="ambient-bg"></div>
+  <div id="loading" class="loading">Chargement...</div>
+  <div id="app" style="display:none">
+    <nav class="navbar">
+      <a href="dashboard.html" class="navbar-brand">
+        <h1>Manga<span>Vault</span></h1>
+        <span class="tag">私のコレクション</span>
+      </a>
+      <div class="navbar-user">
+        <button class="navbar-user-btn" onclick="toggleMenu()">
+          <div id="user-avatar"></div>
+          <span id="user-name"></span>
+          <span style="font-size:10px;color:#555">▼</span>
+        </button>
+        <div id="user-dropdown" class="navbar-dropdown" style="display:none">
+          <div class="navbar-dropdown-email" id="user-email"></div>
+          <button class="navbar-dropdown-btn" onclick="logout()">Se déconnecter</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <h2>Ma collection</h2>
+        <div class="add-buttons">
+          <button class="btn-add btn-add-manga" onclick="openModal('manga')">
+            <span class="plus">+</span> 漫画 Manga
+          </button>
+          <button class="btn-add btn-add-anime" onclick="openModal('anime')">
+            <span class="plus">+</span> アニメ Anime
+          </button>
+        </div>
+      </div>
+
+      <div class="stats-bar" id="stats-bar"></div>
+
+      <div class="filters">
+        <div class="search-box">
+          <span class="icon">⌕</span>
+          <input type="text" id="search" placeholder="Rechercher..." oninput="renderWorks()">
+        </div>
+        <div class="filter-group" id="type-filters">
+          <button class="filter-btn active" onclick="setFilter('type','all',this)">Tout</button>
+          <button class="filter-btn" onclick="setFilter('type','manga',this)">漫画</button>
+          <button class="filter-btn" onclick="setFilter('type','anime',this)">アニメ</button>
+        </div>
+        <select class="filter-select" id="status-filter" onchange="renderWorks()">
+          <option value="all">Tous statuts</option>
+          <option value="en_cours">En cours</option>
+          <option value="termine">Terminé</option>
+          <option value="en_pause">En pause</option>
+          <option value="abandonne">Abandonné</option>
+          <option value="planifie">Planifié</option>
+        </select>
+        <select class="filter-select" id="sort-by" onchange="renderWorks()">
+          <option value="created_at">Plus récent</option>
+          <option value="rating">Meilleure note</option>
+          <option value="title">A → Z</option>
+        </select>
+      </div>
+
+      <div id="works-grid" class="works-grid"></div>
+      <div id="empty-state" class="empty-state" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL MANGA ========== -->
+  <div id="modal-manga" class="modal-overlay" style="display:none" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-header-bar manga">
+        <h2 id="modal-manga-title">Ajouter un manga 漫画</h2>
+      </div>
+
+      <!-- SEARCH STEP -->
+      <div id="fm-step-search" class="modal-field">
+        <label class="modal-label">Rechercher un manga</label>
+        <div class="search-input-wrap">
+          <input class="modal-input" id="fm-search" placeholder="Tape un titre... ex: chainsow man" oninput="onMangaSearch()">
+          <div id="fm-search-spinner" class="search-spinner" style="display:none"></div>
+        </div>
+        <div id="fm-search-results" class="search-results" style="display:none"></div>
+        <button class="btn-manual-entry" id="fm-manual-btn" onclick="showManualMangaForm()" style="display:none">
+          Saisie manuelle →
+        </button>
+      </div>
+
+      <!-- FORM -->
+      <div id="fm-form" style="display:none">
+        <div id="fm-preview" class="search-preview" style="display:none"></div>
+
+        <div class="modal-field">
+          <label class="modal-label">Titre</label>
+          <input class="modal-input" id="fm-title" placeholder="Titre du manga">
+        </div>
+
+        <div class="modal-row">
+          <div>
+            <label class="modal-label">Auteur</label>
+            <input class="modal-input" id="fm-author" placeholder="Auteur">
+          </div>
+          <div>
+            <label class="modal-label">Format</label>
+            <select class="modal-input" id="fm-format">
+              <option value="">—</option>
+              <option value="shonen">Shōnen</option>
+              <option value="seinen">Seinen</option>
+              <option value="shojo">Shōjo</option>
+              <option value="josei">Josei</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-row">
+          <div>
+            <label class="modal-label">Année de publication</label>
+            <input class="modal-input" type="number" id="fm-year" placeholder="2018">
+          </div>
+          <div>
+            <label class="modal-label">Statut de publication</label>
+            <select class="modal-input" id="fm-pub-status">
+              <option value="en_cours">En cours</option>
+              <option value="termine">Terminé</option>
+              <option value="en_pause">En pause</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-row">
+          <div>
+            <label class="modal-label">Statut de lecture</label>
+            <select class="modal-input" id="fm-status">
+              <option value="en_cours">En cours</option>
+              <option value="termine">Terminé</option>
+              <option value="en_pause">En pause</option>
+              <option value="abandonne">Abandonné</option>
+              <option value="planifie">Planifié</option>
+            </select>
+          </div>
+          <div>
+            <label class="modal-label">Note</label>
+            <div class="star-rating" id="fm-stars"></div>
+            <span class="rating-display" id="fm-rating-label">7/10</span>
+          </div>
+        </div>
+
+        <div class="modal-field">
+          <label class="modal-label">Genres</label>
+          <div class="genre-tags" id="fm-genres"></div>
+        </div>
+
+        <div class="modal-row">
+          <div>
+            <label class="modal-label">Volumes lus</label>
+            <input class="modal-input" type="number" id="fm-volumes" placeholder="0">
+          </div>
+          <div>
+            <label class="modal-label">Volumes VO (Japon)</label>
+            <input class="modal-input" type="number" id="fm-volumes-vo" placeholder="?">
+          </div>
+        </div>
+
+        <div class="modal-field">
+          <label class="modal-label">Volumes VF (France)</label>
+          <div class="vf-field-row">
+            <input class="modal-input" type="number" id="fm-fr-volumes" placeholder="?">
+            <button class="btn-search-vf" id="fm-vf-btn" onclick="searchVF()" title="Rechercher automatiquement">
+              🔍 Chercher
+            </button>
+          </div>
+          <div id="fm-vf-status" class="vf-status" style="display:none"></div>
+        </div>
+
+        <div class="modal-field">
+          <label class="modal-label">Image URL</label>
+          <input class="modal-input" id="fm-image" placeholder="https://...">
+        </div>
+
+        <div class="modal-field">
+          <label class="modal-label">Notes personnelles</label>
+          <textarea class="modal-input" id="fm-notes" placeholder="Mes impressions..."></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick="closeModal()">Annuler</button>
+          <button class="btn-save btn-save-manga" id="btn-save-manga" onclick="saveWork('manga')">Ajouter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL ANIME ========== -->
+  <div id="modal-anime" class="modal-overlay" style="display:none" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-header-bar anime">
+        <h2 id="modal-anime-title">Ajouter un anime アニメ</h2>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Titre *</label>
+        <input class="modal-input" id="fa-title" placeholder="Ex: Frieren">
+      </div>
+
+      <div class="modal-row">
+        <div>
+          <label class="modal-label">Studio</label>
+          <input class="modal-input" id="fa-studio" placeholder="Ex: Madhouse">
+        </div>
+        <div>
+          <label class="modal-label">Année de diffusion</label>
+          <input class="modal-input" type="number" id="fa-year" placeholder="2024">
+        </div>
+      </div>
+
+      <div class="modal-row">
+        <div>
+          <label class="modal-label">Saison de diffusion</label>
+          <select class="modal-input" id="fa-season">
+            <option value="">—</option>
+            <option value="hiver">Hiver (Jan-Mar)</option>
+            <option value="printemps">Printemps (Avr-Juin)</option>
+            <option value="ete">Été (Juil-Sep)</option>
+            <option value="automne">Automne (Oct-Déc)</option>
+          </select>
+        </div>
+        <div>
+          <label class="modal-label">Plateforme</label>
+          <select class="modal-input" id="fa-platform">
+            <option value="">—</option>
+            <option value="crunchyroll">Crunchyroll</option>
+            <option value="netflix">Netflix</option>
+            <option value="adn">ADN</option>
+            <option value="disney">Disney+</option>
+            <option value="prime">Prime Video</option>
+            <option value="hidive">HIDIVE</option>
+            <option value="autre">Autre</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-row">
+        <div>
+          <label class="modal-label">Statut de visionnage</label>
+          <select class="modal-input" id="fa-status">
+            <option value="en_cours">En cours</option>
+            <option value="termine">Terminé</option>
+            <option value="en_pause">En pause</option>
+            <option value="abandonne">Abandonné</option>
+            <option value="planifie">Planifié</option>
+          </select>
+        </div>
+        <div>
+          <label class="modal-label">Note</label>
+          <div class="star-rating" id="fa-stars"></div>
+          <span class="rating-display" id="fa-rating-label">7/10</span>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Genres</label>
+        <div class="genre-tags" id="fa-genres"></div>
+      </div>
+
+      <div class="modal-row">
+        <div>
+          <label class="modal-label">Épisodes vus</label>
+          <input class="modal-input" type="number" id="fa-episodes" placeholder="0">
+        </div>
+        <div>
+          <label class="modal-label">Épisodes total</label>
+          <input class="modal-input" type="number" id="fa-episodes-total" placeholder="?">
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Nombre de saisons</label>
+        <input class="modal-input" type="number" id="fa-seasons" placeholder="1" style="width:160px">
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Image URL</label>
+        <input class="modal-input" id="fa-image" placeholder="https://...">
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Notes personnelles</label>
+        <textarea class="modal-input" id="fa-notes" placeholder="Mes impressions..."></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Annuler</button>
+        <button class="btn-save btn-save-anime" id="btn-save-anime" onclick="saveWork('anime')">Ajouter</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
