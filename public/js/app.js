@@ -621,6 +621,81 @@ function closeUniverse() {
 }
 
 // ============================================
+// COMPLETION MODAL (when marking as terminé)
+// ============================================
+
+var completeRating = 7;
+var completeType = null;
+var completeResolve = null;
+
+function onStatusChange(type) {
+  var statusEl = document.getElementById(type === "manga" ? "fm-status" : "fa-status");
+  if (statusEl.value === "termine" && editingId) {
+    // Auto-fill progress to total
+    if (type === "manga") {
+      var total = document.getElementById("fm-volumes-vo").value;
+      if (total) document.getElementById("fm-volumes").value = total;
+    } else {
+      var total = document.getElementById("fa-episodes-total").value;
+      if (total) document.getElementById("fa-episodes").value = total;
+    }
+    // Open completion modal
+    openCompleteModal(type);
+  } else if (statusEl.value === "planifie") {
+    // Reset progress to 0
+    if (type === "manga") { document.getElementById("fm-volumes").value = "0"; }
+    else { document.getElementById("fa-episodes").value = "0"; }
+  }
+}
+
+function openCompleteModal(type) {
+  completeType = type;
+  completeRating = 7;
+  document.getElementById("complete-notes").value = "";
+  buildCompleteStars();
+  document.getElementById("modal-complete").style.display = "flex";
+}
+
+function buildCompleteStars() {
+  var el = document.getElementById("complete-stars");
+  el.innerHTML = "";
+  for (var i = 1; i <= 10; i++) {
+    (function(r) {
+      var btn = document.createElement("button");
+      btn.textContent = "★";
+      btn.className = completeRating >= r ? "active" : "";
+      btn.onclick = function() {
+        completeRating = r;
+        document.getElementById("complete-rating-label").textContent = r + "/10";
+        buildCompleteStars();
+      };
+      el.appendChild(btn);
+    })(i);
+  }
+  document.getElementById("complete-rating-label").textContent = completeRating + "/10";
+}
+
+function closeComplete(confirmed) {
+  document.getElementById("modal-complete").style.display = "none";
+  if (confirmed) {
+    // Apply rating and notes to the edit form
+    var formObj = completeType === "manga" ? mangaForm : animeForm;
+    formObj.rating = completeRating;
+    var starsId = completeType === "manga" ? "fm-stars" : "fa-stars";
+    var labelId = completeType === "manga" ? "fm-rating-label" : "fa-rating-label";
+    var notesId = completeType === "manga" ? "fm-notes" : "fa-notes";
+    document.getElementById(labelId).textContent = completeRating + "/10";
+    document.getElementById(notesId).value = document.getElementById("complete-notes").value;
+    buildStars(starsId, formObj);
+  } else {
+    // Cancelled: revert status to previous
+    var statusEl = document.getElementById(completeType === "manga" ? "fm-status" : "fa-status");
+    var work = works.find(function(w) { return w.id === editingId; });
+    if (work) statusEl.value = work.status;
+  }
+}
+
+// ============================================
 // WIZARD (step-by-step add after Jikan select)
 // ============================================
 
@@ -1035,7 +1110,7 @@ async function saveWork(type) {
       year: parseInt(document.getElementById("fm-year").value) || null,
       publication_status: document.getElementById("fm-pub-status").value || null,
       status: document.getElementById("fm-status").value,
-      rating: mangaForm.rating, genres: mangaForm.genres,
+      rating: document.getElementById("fm-status").value === "termine" ? mangaForm.rating : null, genres: mangaForm.genres,
       volumes_read: parseInt(document.getElementById("fm-volumes").value) || 0,
       volumes_vo: parseInt(document.getElementById("fm-volumes-vo").value) || null,
       fr_volumes: parseInt(document.getElementById("fm-fr-volumes").value) || null,
@@ -1054,7 +1129,7 @@ async function saveWork(type) {
       season_name: document.getElementById("fa-season").value || null,
       platform: document.getElementById("fa-platform").value || null,
       status: document.getElementById("fa-status").value,
-      rating: animeForm.rating, genres: animeForm.genres,
+      rating: document.getElementById("fa-status").value === "termine" ? animeForm.rating : null, genres: animeForm.genres,
       episodes_watched: parseInt(document.getElementById("fa-episodes").value) || 0,
       episodes_total: parseInt(document.getElementById("fa-episodes-total").value) || null,
       seasons_count: parseInt(document.getElementById("fa-seasons").value) || null,
