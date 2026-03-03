@@ -126,7 +126,7 @@ function onMangaSearch() {
 
 async function searchManga(query) {
   try {
-    var response = await fetch("https://api.jikan.moe/v4/manga?q=" + encodeURIComponent(query) + "&limit=6&order_by=popularity&sort=asc");
+    var response = await fetch("https://api.jikan.moe/v4/manga?q=" + encodeURIComponent(query) + "&limit=6");
     var data = await response.json();
     document.getElementById("fm-search-spinner").style.display = "none";
     if (data.data && data.data.length > 0) { renderMangaSearchResults(data.data); }
@@ -241,7 +241,7 @@ function onAnimeSearch() {
 
 async function searchAnime(query) {
   try {
-    var response = await fetch("https://api.jikan.moe/v4/anime?q=" + encodeURIComponent(query) + "&limit=6&order_by=popularity&sort=asc");
+    var response = await fetch("https://api.jikan.moe/v4/anime?q=" + encodeURIComponent(query) + "&limit=6");
     var data = await response.json();
     document.getElementById("fa-search-spinner").style.display = "none";
     if (data.data && data.data.length > 0) { renderAnimeSearchResults(data.data); }
