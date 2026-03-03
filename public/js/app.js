@@ -432,6 +432,11 @@ async function openUniverse(workId) {
         if (epsEl) { epsEl.textContent = detData.data.episodes ? detData.data.episodes + " ep." : detData.data.volumes ? detData.data.volumes + " vol." : ""; }
         var enEl = document.getElementById("uni-en-" + e.mal_id);
         if (enEl && detData.data.title_english && detData.data.title_english !== detData.data.title) { enEl.textContent = detData.data.title_english; }
+        var yearEl = document.getElementById("uni-year-" + e.mal_id);
+        if (yearEl) {
+          var yr = detData.data.year || (detData.data.published && detData.data.published.prop && detData.data.published.prop.from ? detData.data.published.prop.from.year : null);
+          if (yr) yearEl.textContent = yr + " · ";
+        }
       }
       if (i < allEntries.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
     } catch (err) { console.log("Detail error:", err); }
@@ -462,7 +467,7 @@ function openUniverseGroup(universeId, title) {
       '</div>' +
       '<div class="universe-item-info" onclick="closeUniverse();editWork(\'' + w.id + '\')">' +
         '<div class="universe-item-title">' + w.title + '</div>' +
-        '<div class="universe-item-meta"><span class="badge badge-' + w.type + ' badge-sm">' + typeBadge + '</span> ★ ' + (w.rating || "—") + '/10 · ' + progress + '</div>' +
+        '<div class="universe-item-meta"><span class="badge badge-' + w.type + ' badge-sm">' + typeBadge + '</span> ' + (w.year ? w.year + ' · ' : '') + '★ ' + (w.rating || "—") + '/10 · ' + progress + '</div>' +
       '</div>' +
       '<div class="universe-item-actions">' + malLinkHtml + '<div class="universe-item-check">✓</div></div></div>';
   });
@@ -549,7 +554,7 @@ async function exploreFull(workId) {
       var malUrl = "https://myanimelist.net/" + e.type + "/" + e.mal_id;
       extraHtml += '<div class="universe-item not-owned">' +
         '<div class="universe-item-img-wrap" onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')"><img id="uni-img-' + e.mal_id + '" class="universe-item-img" src="" alt="" style="display:none"><div class="universe-item-placeholder">' + (e.type === "anime" ? "📺" : "📖") + '</div></div>' +
-        '<div class="universe-item-info" onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')"><div class="universe-item-title">' + e.name + '</div><div id="uni-en-' + e.mal_id + '" class="universe-item-en"></div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
+        '<div class="universe-item-info" onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')"><div class="universe-item-title">' + e.name + '</div><div id="uni-en-' + e.mal_id + '" class="universe-item-en"></div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-year-' + e.mal_id + '"></span><span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
         '<div class="universe-item-actions"><a href="' + malUrl + '" target="_blank" class="universe-mal-link" onclick="event.stopPropagation()" title="Voir sur MyAnimeList">MAL ↗</a><div class="universe-item-add" onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')">+</div></div></div>';
     });
     extraHtml += '</div></div>';
@@ -570,6 +575,11 @@ async function exploreFull(workId) {
           if (epsEl) { epsEl.textContent = detData.data.episodes ? detData.data.episodes + " ep." : detData.data.volumes ? detData.data.volumes + " vol." : ""; }
           var enEl = document.getElementById("uni-en-" + e.mal_id);
           if (enEl && detData.data.title_english && detData.data.title_english !== detData.data.title) { enEl.textContent = detData.data.title_english; }
+          var yearEl = document.getElementById("uni-year-" + e.mal_id);
+          if (yearEl) {
+            var yr = detData.data.year || (detData.data.published && detData.data.published.prop && detData.data.published.prop.from ? detData.data.published.prop.from.year : null);
+            if (yr) yearEl.textContent = yr + " · ";
+          }
         }
         if (i < unownedEntries.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
       } catch (err) { console.log("Detail error:", err); }
@@ -596,12 +606,12 @@ function renderUniverseList(entries, myMalIds, uniId) {
       if (owned) {
         html += '<div class="' + cls + '">' +
           '<div class="universe-item-img-wrap" onclick="closeUniverse();editWork(\'' + owned.id + '\')"><img id="uni-img-' + e.mal_id + '" class="universe-item-img" src="" alt="" style="display:none"><div class="universe-item-placeholder">' + (e.type === "anime" ? "📺" : "📖") + '</div></div>' +
-          '<div class="universe-item-info" onclick="closeUniverse();editWork(\'' + owned.id + '\')"><div class="universe-item-title">' + e.name + '</div><div id="uni-en-' + e.mal_id + '" class="universe-item-en"></div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
+          '<div class="universe-item-info" onclick="closeUniverse();editWork(\'' + owned.id + '\')"><div class="universe-item-title">' + e.name + '</div><div id="uni-en-' + e.mal_id + '" class="universe-item-en"></div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-year-' + e.mal_id + '"></span><span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
           '<div class="universe-item-actions"><a href="' + malUrl + '" target="_blank" class="universe-mal-link" onclick="event.stopPropagation()" title="Voir sur MyAnimeList">MAL ↗</a><div class="universe-item-check">✓</div></div></div>';
       } else {
         html += '<div class="' + cls + '">' +
           '<div class="universe-item-img-wrap" onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')"><img id="uni-img-' + e.mal_id + '" class="universe-item-img" src="" alt="" style="display:none"><div class="universe-item-placeholder">' + (e.type === "anime" ? "📺" : "📖") + '</div></div>' +
-          '<div class="universe-item-info" onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')"><div class="universe-item-title">' + e.name + '</div><div id="uni-en-' + e.mal_id + '" class="universe-item-en"></div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
+          '<div class="universe-item-info" onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')"><div class="universe-item-title">' + e.name + '</div><div id="uni-en-' + e.mal_id + '" class="universe-item-en"></div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-year-' + e.mal_id + '"></span><span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
           '<div class="universe-item-actions"><a href="' + malUrl + '" target="_blank" class="universe-mal-link" onclick="event.stopPropagation()" title="Voir sur MyAnimeList">MAL ↗</a><div class="universe-item-add" onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')">+</div></div></div>';
       }
     });
