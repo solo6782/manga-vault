@@ -141,7 +141,8 @@ function renderMangaSearchResults(results) {
     var img = (m.images && m.images.jpg && m.images.jpg.small_image_url) || "";
     var author = (m.authors && m.authors.length > 0) ? m.authors[0].name || "" : "";
     var year = (m.published && m.published.prop && m.published.prop.from) ? m.published.prop.from.year : "";
-    return '<button class="search-result-item" onclick="selectManga(' + m.mal_id + ')"><div class="search-result-img">' + (img ? '<img src="' + img + '" alt="">' : '<span>📖</span>') + '</div><div class="search-result-info"><div class="search-result-title">' + (m.title || "") + '</div><div class="search-result-meta">' + (author ? author + ' · ' : '') + (year ? year + ' · ' : '') + (m.volumes || "?") + ' vol.</div></div></button>';
+    var enTitle = m.title_english ? '<div class="search-result-en">' + m.title_english + '</div>' : '';
+    return '<button class="search-result-item" onclick="selectManga(' + m.mal_id + ')"><div class="search-result-img">' + (img ? '<img src="' + img + '" alt="">' : '<span>📖</span>') + '</div><div class="search-result-info"><div class="search-result-title">' + (m.title || "") + '</div>' + enTitle + '<div class="search-result-meta">' + (author ? author + ' · ' : '') + (year ? year + ' · ' : '') + (m.volumes || "?") + ' vol.</div></div></button>';
   }).join("");
   c.style.display = "block";
 }
@@ -152,8 +153,13 @@ async function selectManga(malId) {
   try {
     var response = await fetch("https://api.jikan.moe/v4/manga/" + malId + "/full");
     var data = await response.json(); var m = data.data; if (!m) return;
+
+    // Store all Jikan data for wizard/form
     mangaForm.mal_id = malId;
     mangaForm.mal_score = m.score || null;
+    mangaForm._jikan = m; // Keep full data for wizard
+
+    // Fill hidden form fields (for manual edit later)
     document.getElementById("fm-title").value = m.title || "";
     document.getElementById("fm-year").value = (m.published && m.published.prop && m.published.prop.from) ? m.published.prop.from.year || "" : "";
     document.getElementById("fm-volumes-vo").value = m.volumes || "";
@@ -172,10 +178,11 @@ async function selectManga(malId) {
     document.getElementById("fm-pub-status").value = pubStatus;
     mangaForm.genres = mapJikanGenres(m);
     if (m.images && m.images.jpg) { document.getElementById("fm-image").value = m.images.jpg.large_image_url || m.images.jpg.image_url || ""; }
-    showMangaPreview(m);
-    document.getElementById("fm-step-search").style.display = "none";
-    document.getElementById("fm-form").style.display = "block";
-    buildStars("fm-stars", mangaForm); buildGenres("fm-genres", mangaForm);
+
+    // Open wizard instead of form
+    closeModal();
+    openWizard("manga", m);
+
   } catch (err) { console.error("Jikan detail error:", err); alert("Erreur lors de la récupération des détails."); }
   document.getElementById("fm-search-spinner").style.display = "none";
 }
@@ -249,7 +256,8 @@ function renderAnimeSearchResults(results) {
     var img = (a.images && a.images.jpg && a.images.jpg.small_image_url) || "";
     var studio = (a.studios && a.studios.length > 0) ? a.studios[0].name || "" : "";
     var year = a.year || "";
-    return '<button class="search-result-item" onclick="selectAnime(' + a.mal_id + ')"><div class="search-result-img">' + (img ? '<img src="' + img + '" alt="">' : '<span>📺</span>') + '</div><div class="search-result-info"><div class="search-result-title">' + (a.title || "") + '</div><div class="search-result-meta">' + (studio ? studio + ' · ' : '') + (year ? year + ' · ' : '') + (a.episodes || "?") + ' ep. · ' + (a.type || "") + '</div></div></button>';
+    var enTitle = a.title_english ? '<div class="search-result-en">' + a.title_english + '</div>' : '';
+    return '<button class="search-result-item" onclick="selectAnime(' + a.mal_id + ')"><div class="search-result-img">' + (img ? '<img src="' + img + '" alt="">' : '<span>📺</span>') + '</div><div class="search-result-info"><div class="search-result-title">' + (a.title || "") + '</div>' + enTitle + '<div class="search-result-meta">' + (studio ? studio + ' · ' : '') + (year ? year + ' · ' : '') + (a.episodes || "?") + ' ep. · ' + (a.type || "") + '</div></div></button>';
   }).join("");
   c.style.display = "block";
 }
@@ -260,8 +268,12 @@ async function selectAnime(malId) {
   try {
     var response = await fetch("https://api.jikan.moe/v4/anime/" + malId + "/full");
     var data = await response.json(); var a = data.data; if (!a) return;
+
     animeForm.mal_id = malId;
     animeForm.mal_score = a.score || null;
+    animeForm._jikan = a;
+
+    // Fill hidden form fields
     document.getElementById("fa-title").value = a.title || "";
     if (a.studios && a.studios.length > 0) { document.getElementById("fa-studio").value = a.studios[0].name || ""; }
     document.getElementById("fa-year").value = a.year || "";
@@ -270,10 +282,11 @@ async function selectAnime(malId) {
     document.getElementById("fa-episodes-total").value = a.episodes || "";
     animeForm.genres = mapJikanGenres(a);
     if (a.images && a.images.jpg) { document.getElementById("fa-image").value = a.images.jpg.large_image_url || a.images.jpg.image_url || ""; }
-    showAnimePreview(a);
-    document.getElementById("fa-step-search").style.display = "none";
-    document.getElementById("fa-form").style.display = "block";
-    buildStars("fa-stars", animeForm); buildGenres("fa-genres", animeForm);
+
+    // Open wizard
+    closeModal();
+    openWizard("anime", a);
+
   } catch (err) { console.error("Jikan detail error:", err); alert("Erreur lors de la récupération des détails."); }
   document.getElementById("fa-search-spinner").style.display = "none";
 }
@@ -587,28 +600,222 @@ function renderUniverseList(entries, myMalIds, uniId) {
 
 function onUniverseItemClick(malId, type) {
   closeUniverse();
+  // Set universe_id on the form, then fetch and open wizard directly
   if (type === "anime") {
-    openModal("anime");
-    setTimeout(function() {
-      document.getElementById("fa-step-search").style.display = "none";
-      document.getElementById("fa-form").style.display = "block";
-      animeForm.universe_id = currentUniverseId;
-      selectAnime(malId);
-    }, 100);
+    animeForm.universe_id = currentUniverseId;
+    // Fake spinner elements for selectAnime
+    document.getElementById("fa-search-results").style.display = "none";
+    document.getElementById("fa-search-spinner").style.display = "none";
+    selectAnime(malId);
   } else {
-    openModal("manga");
-    setTimeout(function() {
-      document.getElementById("fm-step-search").style.display = "none";
-      document.getElementById("fm-form").style.display = "block";
-      mangaForm.universe_id = currentUniverseId;
-      selectManga(malId);
-    }, 100);
+    mangaForm.universe_id = currentUniverseId;
+    document.getElementById("fm-search-results").style.display = "none";
+    document.getElementById("fm-search-spinner").style.display = "none";
+    selectManga(malId);
   }
 }
 
 function closeUniverse() {
   document.getElementById("modal-universe").style.display = "none";
   renderWorks(); // Refresh grid to show updated groups
+}
+
+// ============================================
+// WIZARD (step-by-step add after Jikan select)
+// ============================================
+
+var wizardData = {};
+var wizardRating = 7;
+
+function openWizard(type, jikanData) {
+  wizardData = { type: type };
+  wizardRating = 7;
+
+  // Build preview
+  var img = (jikanData.images && jikanData.images.jpg && jikanData.images.jpg.image_url) || "";
+  var title = jikanData.title || "";
+  var enTitle = jikanData.title_english || "";
+  var meta1 = "", meta2 = "";
+
+  if (type === "manga") {
+    var author = (jikanData.authors && jikanData.authors.length > 0) ? reverseAuthorName(jikanData.authors[0].name || "") : "";
+    var year = (jikanData.published && jikanData.published.prop && jikanData.published.prop.from && jikanData.published.prop.from.year) ? jikanData.published.prop.from.year : "";
+    meta1 = author + (year ? " · " + year : "");
+    meta2 = "Score MAL: " + (jikanData.score || "N/A") + " · " + (jikanData.volumes || "?") + " volumes";
+    wizardData.totalCount = jikanData.volumes || null;
+    wizardData.progressLabel = "volumes lus";
+    wizardData.progressUnit = "vol.";
+  } else {
+    var studio = (jikanData.studios && jikanData.studios.length > 0) ? jikanData.studios[0].name : "";
+    var season = jikanData.season ? jikanData.season.charAt(0).toUpperCase() + jikanData.season.slice(1) : "";
+    meta1 = studio + (jikanData.year ? " · " + (season ? season + " " : "") + jikanData.year : "");
+    meta2 = "Score MAL: " + (jikanData.score || "N/A") + " · " + (jikanData.episodes || "?") + " épisodes" + (jikanData.type ? " · " + jikanData.type : "");
+    wizardData.totalCount = jikanData.episodes || null;
+    wizardData.progressLabel = "épisodes vus";
+    wizardData.progressUnit = "ep.";
+  }
+
+  document.getElementById("wizard-header").className = "modal-header-bar " + type;
+  document.getElementById("wizard-title").textContent = type === "manga" ? "Ajouter un manga 漫画" : "Ajouter un anime アニメ";
+
+  document.getElementById("wiz-preview").innerHTML =
+    '<div class="preview-card">' +
+      (img ? '<img src="' + img + '" alt="" class="preview-img">' : '') +
+      '<div class="preview-info">' +
+        '<div class="preview-title">' + title + '</div>' +
+        (enTitle && enTitle !== title ? '<div class="preview-en">' + enTitle + '</div>' : '') +
+        '<div class="preview-meta">' + meta1 + '</div>' +
+        '<div class="preview-meta">' + meta2 + '</div>' +
+      '</div></div>';
+
+  // Reset steps
+  document.getElementById("wiz-step-status").style.display = "block";
+  document.getElementById("wiz-step-progress").style.display = "none";
+  document.getElementById("wiz-step-rating").style.display = "none";
+  document.getElementById("wiz-step-notes").style.display = "none";
+  document.getElementById("wiz-step-saving").style.display = "none";
+
+  // Reset active status buttons
+  var btns = document.querySelectorAll(".wiz-status-btn");
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove("active");
+
+  document.getElementById("modal-wizard").style.display = "flex";
+}
+
+function wizSetStatus(status) {
+  wizardData.status = status;
+
+  // Highlight selected button
+  var btns = document.querySelectorAll(".wiz-status-btn");
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove("active");
+  document.querySelector('.wiz-status-btn[data-status="' + status + '"]').classList.add("active");
+
+  // Hide all next steps
+  document.getElementById("wiz-step-progress").style.display = "none";
+  document.getElementById("wiz-step-rating").style.display = "none";
+  document.getElementById("wiz-step-notes").style.display = "none";
+
+  if (status === "termine") {
+    // Episodes = total, ask for rating
+    wizardData.progress = wizardData.totalCount || 0;
+    wizardRating = 7;
+    buildWizStars();
+    document.getElementById("wiz-step-rating").style.display = "block";
+    document.getElementById("wiz-step-rating").scrollIntoView({ behavior: "smooth" });
+  } else if (status === "planifie") {
+    // 0 progress, no rating, save directly
+    wizardData.progress = 0;
+    wizSave();
+  } else {
+    // en_cours, en_pause, abandonne: ask progress
+    document.getElementById("wiz-progress-label").textContent = "Combien de " + wizardData.progressLabel + " ?";
+    document.getElementById("wiz-progress").value = "";
+    document.getElementById("wiz-progress-total").textContent = "/ " + (wizardData.totalCount || "?") + " " + wizardData.progressUnit;
+    document.getElementById("wiz-step-progress").style.display = "block";
+    document.getElementById("wiz-progress").focus();
+    document.getElementById("wiz-step-progress").scrollIntoView({ behavior: "smooth" });
+  }
+}
+
+function wizAfterProgress() {
+  wizardData.progress = parseInt(document.getElementById("wiz-progress").value) || 0;
+  wizSave();
+}
+
+function buildWizStars() {
+  var el = document.getElementById("wiz-stars");
+  el.innerHTML = "";
+  for (var i = 1; i <= 10; i++) {
+    (function(r) {
+      var btn = document.createElement("button");
+      btn.textContent = "★";
+      btn.className = wizardRating >= r ? "active" : "";
+      btn.onclick = function() {
+        wizardRating = r;
+        document.getElementById("wiz-rating-label").textContent = r + "/10";
+        buildWizStars();
+      };
+      el.appendChild(btn);
+    })(i);
+  }
+  document.getElementById("wiz-rating-label").textContent = wizardRating + "/10";
+}
+
+function wizAfterRating() {
+  // Show notes step
+  document.getElementById("wiz-notes").value = "";
+  document.getElementById("wiz-step-notes").style.display = "block";
+  document.getElementById("wiz-notes").focus();
+  document.getElementById("wiz-step-notes").scrollIntoView({ behavior: "smooth" });
+}
+
+async function wizSave() {
+  document.getElementById("wiz-step-status").style.display = "none";
+  document.getElementById("wiz-step-progress").style.display = "none";
+  document.getElementById("wiz-step-rating").style.display = "none";
+  document.getElementById("wiz-step-notes").style.display = "none";
+  document.getElementById("wiz-step-saving").style.display = "block";
+
+  var formObj = wizardData.type === "manga" ? mangaForm : animeForm;
+  var payload = {};
+
+  if (wizardData.type === "manga") {
+    payload = {
+      title: document.getElementById("fm-title").value, type: "manga",
+      author: document.getElementById("fm-author").value || null,
+      format: document.getElementById("fm-format").value || null,
+      year: parseInt(document.getElementById("fm-year").value) || null,
+      publication_status: document.getElementById("fm-pub-status").value || null,
+      status: wizardData.status,
+      rating: wizardData.status === "termine" ? wizardRating : null,
+      genres: formObj.genres,
+      volumes_read: wizardData.progress || 0,
+      volumes_vo: parseInt(document.getElementById("fm-volumes-vo").value) || null,
+      fr_volumes: null, available_fr: false,
+      image_url: document.getElementById("fm-image").value || null,
+      notes: wizardData.status === "termine" ? (document.getElementById("wiz-notes").value || null) : null,
+      mal_id: formObj.mal_id, mal_score: formObj.mal_score,
+      universe_id: formObj.universe_id || null,
+      user_id: currentUser.id,
+    };
+  } else {
+    payload = {
+      title: document.getElementById("fa-title").value, type: "anime",
+      studio: document.getElementById("fa-studio").value || null,
+      year: parseInt(document.getElementById("fa-year").value) || null,
+      season_name: document.getElementById("fa-season").value || null,
+      platform: document.getElementById("fa-platform").value || null,
+      status: wizardData.status,
+      rating: wizardData.status === "termine" ? wizardRating : null,
+      genres: formObj.genres,
+      episodes_watched: wizardData.progress || 0,
+      episodes_total: parseInt(document.getElementById("fa-episodes-total").value) || null,
+      seasons_count: null,
+      image_url: document.getElementById("fa-image").value || null,
+      notes: wizardData.status === "termine" ? (document.getElementById("wiz-notes").value || null) : null,
+      mal_id: formObj.mal_id, mal_score: formObj.mal_score,
+      universe_id: formObj.universe_id || null,
+      user_id: currentUser.id,
+    };
+  }
+
+  var result = await sb.from("mv_works").insert(payload).select().single();
+  if (result.error) {
+    console.error("Save error:", result.error);
+    alert("Erreur: " + result.error.message);
+    document.getElementById("wiz-step-saving").style.display = "none";
+    document.getElementById("wiz-step-status").style.display = "block";
+  } else {
+    works.unshift(result.data);
+    renderStats();
+    renderWorks();
+    closeWizard();
+  }
+}
+
+function closeWizard() {
+  document.getElementById("modal-wizard").style.display = "none";
+  wizardData = {};
 }
 
 // ============================================

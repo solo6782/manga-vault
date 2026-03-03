@@ -100,7 +100,7 @@
       <div id="fa-form" style="display:none">
         <div id="fa-preview" class="search-preview" style="display:none"></div>
         <div class="modal-field"><label class="modal-label">Titre</label><input class="modal-input" id="fa-title" placeholder="Titre de l'anime"></div>
-        <div class="modal-row"><div><label class="modal-label">Année de diffusion</label><input class="modal-input" type="number" id="fa-year" placeholder="2024"></div><div><label class="modal-label">Saison de diffusion</label><select class="modal-input" id="fa-season"><option value="">—</option><option value="hiver">Hiver (Jan-Mar)</option><option value="printemps">Printemps (Avr-Juin)</option><option value="ete">Été (Juil-Sep)</option><option value="automne">Automne (Oct-Déc)</option></select></div></div>
+        <div class="modal-row"><div><label class="modal-label">Saison de diffusion</label><select class="modal-input" id="fa-season"><option value="">—</option><option value="hiver">Hiver (Jan-Mar)</option><option value="printemps">Printemps (Avr-Juin)</option><option value="ete">Été (Juil-Sep)</option><option value="automne">Automne (Oct-Déc)</option></select></div><div><label class="modal-label">Année de diffusion</label><input class="modal-input" type="number" id="fa-year" placeholder="2024"></div></div>
         <div class="modal-row"><div><label class="modal-label">Studio</label><input class="modal-input" id="fa-studio" placeholder="Ex: Madhouse"></div><div><label class="modal-label">Plateforme</label><select class="modal-input" id="fa-platform"><option value="">—</option><option value="crunchyroll">Crunchyroll</option><option value="netflix">Netflix</option><option value="adn">ADN</option><option value="disney">Disney+</option><option value="prime">Prime Video</option><option value="hidive">HIDIVE</option><option value="autre">Autre</option></select></div></div>
         <div class="modal-row"><div><label class="modal-label">Statut de visionnage</label><select class="modal-input" id="fa-status"><option value="en_cours">En cours</option><option value="termine">Terminé</option><option value="en_pause">En pause</option><option value="abandonne">Abandonné</option><option value="planifie">Planifié</option></select></div><div><label class="modal-label">Note</label><div class="star-rating" id="fa-stars"></div><span class="rating-display" id="fa-rating-label">7/10</span></div></div>
         <div class="modal-field"><label class="modal-label">Genres</label><div class="genre-tags" id="fa-genres"></div></div>
@@ -125,6 +125,63 @@
         <span>Chargement de l'univers...</span>
       </div>
       <div id="universe-content" class="universe-content"></div>
+    </div>
+  </div>
+
+  <!-- MODAL WIZARD (post-Jikan selection) -->
+  <div id="modal-wizard" class="modal-overlay" style="display:none" onclick="closeWizard()">
+    <div class="modal modal-wizard" onclick="event.stopPropagation()">
+      <div class="modal-header-bar" id="wizard-header">
+        <h2 id="wizard-title">Ajouter</h2>
+      </div>
+
+      <!-- Preview (always visible) -->
+      <div id="wiz-preview" class="wiz-preview"></div>
+
+      <!-- Step: Status -->
+      <div id="wiz-step-status" class="wiz-step">
+        <label class="wiz-label">Quel est ton statut ?</label>
+        <div class="wiz-status-grid">
+          <button class="wiz-status-btn" data-status="termine" onclick="wizSetStatus('termine')">✅ Terminé</button>
+          <button class="wiz-status-btn" data-status="en_cours" onclick="wizSetStatus('en_cours')">▶️ En cours</button>
+          <button class="wiz-status-btn" data-status="planifie" onclick="wizSetStatus('planifie')">📋 Planifié</button>
+          <button class="wiz-status-btn" data-status="en_pause" onclick="wizSetStatus('en_pause')">⏸ En pause</button>
+          <button class="wiz-status-btn" data-status="abandonne" onclick="wizSetStatus('abandonne')">❌ Abandonné</button>
+        </div>
+      </div>
+
+      <!-- Step: Progress (en_cours / en_pause / abandonne only) -->
+      <div id="wiz-step-progress" class="wiz-step" style="display:none">
+        <label class="wiz-label" id="wiz-progress-label">Combien as-tu vu/lu ?</label>
+        <div class="wiz-progress-row">
+          <input class="modal-input wiz-progress-input" type="number" id="wiz-progress" min="0" placeholder="0">
+          <span class="wiz-progress-total" id="wiz-progress-total"></span>
+        </div>
+        <button class="btn-save wiz-next-btn" onclick="wizAfterProgress()">Suivant →</button>
+      </div>
+
+      <!-- Step: Rating (termine only) -->
+      <div id="wiz-step-rating" class="wiz-step" style="display:none">
+        <label class="wiz-label">Ta note ?</label>
+        <div class="star-rating wiz-stars" id="wiz-stars"></div>
+        <span class="rating-display" id="wiz-rating-label">7/10</span>
+        <button class="btn-save wiz-next-btn" onclick="wizAfterRating()">Suivant →</button>
+      </div>
+
+      <!-- Step: Notes (termine only) -->
+      <div id="wiz-step-notes" class="wiz-step" style="display:none">
+        <label class="wiz-label">Un commentaire ?</label>
+        <textarea class="modal-input wiz-notes-input" id="wiz-notes" placeholder="Tes impressions..."></textarea>
+        <div class="wiz-notes-actions">
+          <button class="btn-cancel" onclick="wizSave()">Passer</button>
+          <button class="btn-save wiz-next-btn" onclick="wizSave()">Sauvegarder ✓</button>
+        </div>
+      </div>
+
+      <!-- Step: Saving -->
+      <div id="wiz-step-saving" class="wiz-step" style="display:none">
+        <div class="wiz-saving">Sauvegarde en cours...</div>
+      </div>
     </div>
   </div>
 
