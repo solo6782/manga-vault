@@ -258,55 +258,23 @@ function resetMangaSearch() {
 }
 
 // ============================================
-// VF SEARCH via Cloudflare Function → Nautiljon
+// VF SEARCH — Ouvre Nautiljon directement
 // ============================================
 
-async function searchVF() {
+function searchVF() {
   var title = document.getElementById("fm-title").value.trim();
   if (!title) return;
 
   var statusEl = document.getElementById("fm-vf-status");
-  var btn = document.getElementById("fm-vf-btn");
-  btn.disabled = true;
-  btn.textContent = "⏳";
+  var nautUrl = "https://www.nautiljon.com/mangas/?q=" + encodeURIComponent(title);
+
+  // Open Nautiljon in new tab
+  window.open(nautUrl, "_blank");
+
+  // Show helper message
   statusEl.style.display = "block";
   statusEl.className = "vf-status searching";
-  statusEl.innerHTML = "Recherche VF sur Nautiljon...";
-
-  try {
-    var resp = await fetch("/api/vf?title=" + encodeURIComponent(title));
-    var data = await resp.json();
-    console.log("VF result:", data);
-
-    if (data.vf_volumes) {
-      document.getElementById("fm-fr-volumes").value = data.vf_volumes;
-      var info = '✓ ' + data.vf_volumes + ' tomes VF';
-      if (data.publisher) info += ' (' + data.publisher + ')';
-      if (data.source) info += ' · <a href="' + data.source + '" target="_blank">Nautiljon ↗</a>';
-      statusEl.innerHTML = info;
-      statusEl.className = "vf-status success";
-
-      // Bonus: update VO if empty
-      if (data.vo_volumes && !document.getElementById("fm-volumes-vo").value) {
-        document.getElementById("fm-volumes-vo").value = data.vo_volumes;
-      }
-    } else if (data.publisher) {
-      statusEl.innerHTML = '✓ Licencié par ' + data.publisher + ' · <a href="' + (data.source || "#") + '" target="_blank">Voir Nautiljon ↗</a>';
-      statusEl.className = "vf-status success";
-    } else {
-      var nautUrl = "https://www.nautiljon.com/mangas/?q=" + encodeURIComponent(title);
-      statusEl.innerHTML = 'Pas trouvé. <a href="' + nautUrl + '" target="_blank">Vérifier sur Nautiljon ↗</a>';
-      statusEl.className = "vf-status not-found";
-    }
-  } catch (err) {
-    console.error("VF search error:", err);
-    var nautUrl = "https://www.nautiljon.com/mangas/?q=" + encodeURIComponent(title);
-    statusEl.innerHTML = 'Erreur. <a href="' + nautUrl + '" target="_blank">Vérifier sur Nautiljon ↗</a>';
-    statusEl.className = "vf-status not-found";
-  }
-
-  btn.disabled = false;
-  btn.textContent = "🔍 Chercher";
+  statusEl.innerHTML = 'Nautiljon ouvert ↗ — Cherche <strong>"Nb volumes VF"</strong> sur la fiche et entre le nombre ci-dessus.';
 }
 
 // ============================================
