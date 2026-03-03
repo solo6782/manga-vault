@@ -13,8 +13,8 @@ var currentUser = null;
 var works = [];
 var editingId = null;
 var filterType = "all";
-var mangaForm = { rating: 7, genres: [], mal_id: null, mal_score: null };
-var animeForm = { rating: 7, genres: [], mal_id: null, mal_score: null };
+var mangaForm = { rating: 7, genres: [], mal_id: null, mal_score: null, universe_id: null };
+var animeForm = { rating: 7, genres: [], mal_id: null, mal_score: null, universe_id: null };
 var searchTimeout = null;
 
 // ============================================
@@ -192,7 +192,7 @@ function showManualMangaForm() {
   document.getElementById("fm-step-search").style.display = "none";
   document.getElementById("fm-form").style.display = "block";
   document.getElementById("fm-preview").style.display = "none";
-  mangaForm.mal_id = null; mangaForm.mal_score = null;
+  mangaForm.mal_id = null; mangaForm.mal_score = null; mangaForm.universe_id = null;
   buildStars("fm-stars", mangaForm); buildGenres("fm-genres", mangaForm);
 }
 
@@ -209,7 +209,7 @@ function resetMangaSearch() {
   document.getElementById("fm-volumes").value = ""; document.getElementById("fm-volumes-vo").value = "";
   document.getElementById("fm-fr-volumes").value = ""; document.getElementById("fm-image").value = "";
   document.getElementById("fm-notes").value = ""; document.getElementById("fm-vf-status").style.display = "none";
-  mangaForm.rating = 7; mangaForm.genres = []; mangaForm.mal_id = null; mangaForm.mal_score = null;
+  mangaForm.rating = 7; mangaForm.genres = []; mangaForm.mal_id = null; mangaForm.mal_score = null; mangaForm.universe_id = null;
 }
 
 function searchVF() {
@@ -290,7 +290,7 @@ function showManualAnimeForm() {
   document.getElementById("fa-step-search").style.display = "none";
   document.getElementById("fa-form").style.display = "block";
   document.getElementById("fa-preview").style.display = "none";
-  animeForm.mal_id = null; animeForm.mal_score = null;
+  animeForm.mal_id = null; animeForm.mal_score = null; animeForm.universe_id = null;
   buildStars("fa-stars", animeForm); buildGenres("fa-genres", animeForm);
 }
 
@@ -307,100 +307,276 @@ function resetAnimeSearch() {
   document.getElementById("fa-episodes").value = ""; document.getElementById("fa-episodes-total").value = "";
   document.getElementById("fa-seasons").value = ""; document.getElementById("fa-image").value = "";
   document.getElementById("fa-notes").value = "";
-  animeForm.rating = 7; animeForm.genres = []; animeForm.mal_id = null; animeForm.mal_score = null;
+  animeForm.rating = 7; animeForm.genres = []; animeForm.mal_id = null; animeForm.mal_score = null; animeForm.universe_id = null;
 }
 
 // ============================================
-// UNIVERSE (related works)
+// UNIVERSE (recursive crawl of related works)
 // ============================================
+
+var currentUniverseId = null;
 
 async function openUniverse(workId) {
   var work = works.find(function(w) { return w.id === workId; });
-  if (!work || !work.mal_id) return;
+  if (!work) return;
+
+  // If this work is part of a group, show the group modal
+  if (work.universe_id) {
+    openUniverseGroup(work.universe_id, work.title);
+    return;
+  }
+
+  // If no mal_id, can't crawl
+  if (!work.mal_id) return;
+
+  // Assign a universe_id if not yet set
+  var uniId = "uni_" + work.mal_id;
+  currentUniverseId = uniId;
+
+  // Update this work's universe_id in DB
+  await sb.from("mv_works").update({ universe_id: uniId }).eq("id", work.id);
+  work.universe_id = uniId;
 
   document.getElementById("universe-title").textContent = "Univers — " + work.title;
   document.getElementById("universe-content").innerHTML = "";
   document.getElementById("universe-loading").style.display = "flex";
   document.getElementById("modal-universe").style.display = "flex";
 
-  var endpoint = work.type === "manga" ? "manga" : "anime";
-  try {
-    var resp = await fetch("https://api.jikan.moe/v4/" + endpoint + "/" + work.mal_id + "/relations");
-    var data = await resp.json();
-    if (!data.data || data.data.length === 0) {
-      document.getElementById("universe-loading").style.display = "none";
-      document.getElementById("universe-content").innerHTML = '<div class="universe-empty">Aucune œuvre liée trouvée.</div>';
-      return;
+  // Recursive crawl
+  var visited = {};
+  var allEntries = [];
+  var queue = [{ mal_id: work.mal_id, type: work.type }];
+  visited[work.type + "_" + work.mal_id] = true;
+  var statusEl = document.getElementById("universe-loading");
+
+  while (queue.length > 0) {
+    var current = queue.shift();
+    var endpoint = current.type === "manga" ? "manga" : "anime";
+
+    try {
+      statusEl.querySelector("span").textContent = "Exploration... " + allEntries.length + " œuvres trouvées";
+      var resp = await fetch("https://api.jikan.moe/v4/" + endpoint + "/" + current.mal_id + "/relations");
+      var data = await resp.json();
+
+      if (data.data) {
+        data.data.forEach(function(rel) {
+          rel.entry.forEach(function(e) {
+            var key = e.type.toLowerCase() + "_" + e.mal_id;
+            if (!visited[key]) {
+              visited[key] = true;
+              var entry = { mal_id: e.mal_id, name: e.name, type: e.type.toLowerCase(), relation: rel.relation };
+              allEntries.push(entry);
+              // Add to queue for recursive crawl (only anime/manga)
+              if (e.type.toLowerCase() === "anime" || e.type.toLowerCase() === "manga") {
+                queue.push({ mal_id: e.mal_id, type: e.type.toLowerCase() });
+              }
+            }
+          });
+        });
+      }
+      // Rate limit
+      await new Promise(function(r) { setTimeout(r, 400); });
+    } catch (err) {
+      console.log("Crawl error for " + current.mal_id + ":", err);
     }
+  }
 
-    // Collect all related entries
-    var allEntries = [];
-    data.data.forEach(function(rel) {
-      rel.entry.forEach(function(e) {
-        allEntries.push({ mal_id: e.mal_id, name: e.name, type: e.type, relation: rel.relation });
-      });
-    });
+  document.getElementById("universe-loading").style.display = "none";
 
-    // Build mal_id index of user collection
-    var myMalIds = {};
-    works.forEach(function(w) { if (w.mal_id) myMalIds[w.type + "_" + w.mal_id] = w; });
+  if (allEntries.length === 0) {
+    document.getElementById("universe-content").innerHTML = '<div class="universe-empty">Aucune œuvre liée trouvée.</div>';
+    return;
+  }
 
-    // Render initial list (names only, images load progressively)
-    renderUniverseList(allEntries, myMalIds);
-    document.getElementById("universe-loading").style.display = "none";
+  // Auto-assign universe_id to works already in collection
+  var myMalIds = {};
+  works.forEach(function(w) { if (w.mal_id) myMalIds[w.type + "_" + w.mal_id] = w; });
 
-    // Progressively load images
-    for (var i = 0; i < allEntries.length; i++) {
-      try {
-        var e = allEntries[i];
-        var apiType = e.type.toLowerCase() === "manga" ? "manga" : "anime";
-        var detResp = await fetch("https://api.jikan.moe/v4/" + apiType + "/" + e.mal_id);
-        var detData = await detResp.json();
-        if (detData.data && detData.data.images && detData.data.images.jpg) {
-          var imgEl = document.getElementById("uni-img-" + e.mal_id);
-          if (imgEl) {
-            imgEl.src = detData.data.images.jpg.image_url || "";
-            imgEl.style.display = "block";
-          }
-          var scoreEl = document.getElementById("uni-score-" + e.mal_id);
-          if (scoreEl && detData.data.score) { scoreEl.textContent = "★ " + detData.data.score; }
-        }
-        if (i < allEntries.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
-      } catch (err) { console.log("Universe detail error:", err); }
+  for (var i = 0; i < allEntries.length; i++) {
+    var key = allEntries[i].type + "_" + allEntries[i].mal_id;
+    var existing = myMalIds[key];
+    if (existing && !existing.universe_id) {
+      await sb.from("mv_works").update({ universe_id: uniId }).eq("id", existing.id);
+      existing.universe_id = uniId;
     }
-  } catch (err) {
-    console.error("Relations error:", err);
-    document.getElementById("universe-loading").style.display = "none";
-    document.getElementById("universe-content").innerHTML = '<div class="universe-empty">Erreur de chargement.</div>';
+  }
+
+  renderUniverseList(allEntries, myMalIds, uniId);
+
+  // Progressively load images
+  for (var i = 0; i < allEntries.length; i++) {
+    try {
+      var e = allEntries[i];
+      var apiType = e.type === "manga" ? "manga" : "anime";
+      var detResp = await fetch("https://api.jikan.moe/v4/" + apiType + "/" + e.mal_id);
+      var detData = await detResp.json();
+      if (detData.data && detData.data.images && detData.data.images.jpg) {
+        var imgEl = document.getElementById("uni-img-" + e.mal_id);
+        if (imgEl) { imgEl.src = detData.data.images.jpg.image_url || ""; imgEl.style.display = "block"; }
+        var scoreEl = document.getElementById("uni-score-" + e.mal_id);
+        if (scoreEl && detData.data.score) { scoreEl.textContent = "★ " + detData.data.score; }
+        var epsEl = document.getElementById("uni-eps-" + e.mal_id);
+        if (epsEl) { epsEl.textContent = detData.data.episodes ? detData.data.episodes + " ep." : detData.data.volumes ? detData.data.volumes + " vol." : ""; }
+      }
+      if (i < allEntries.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
+    } catch (err) { console.log("Detail error:", err); }
   }
 }
 
-function renderUniverseList(entries, myMalIds) {
-  // Group by relation type
+function openUniverseGroup(universeId, title) {
+  currentUniverseId = universeId;
+  var groupWorks = works.filter(function(w) { return w.universe_id === universeId; });
+  if (groupWorks.length === 0) return;
+
+  // Find the "main" work for the title
+  var mainTitle = title || groupWorks[0].title;
+  document.getElementById("universe-title").textContent = "Univers — " + mainTitle;
+  document.getElementById("universe-loading").style.display = "none";
+  document.getElementById("modal-universe").style.display = "flex";
+
+  // Show owned works
+  var html = '<div class="universe-group"><h3 class="universe-group-title">Ma collection</h3><div class="universe-items">';
+  groupWorks.forEach(function(w) {
+    var typeBadge = w.type === "anime" ? "アニメ" : "漫画";
+    var progress = w.type === "manga" ? (w.volumes_read || 0) + "/" + (w.volumes_vo || "?") + " vol." : (w.episodes_watched || 0) + "/" + (w.episodes_total || "?") + " ep.";
+    html += '<div class="universe-item owned" onclick="closeUniverse();editWork(\'' + w.id + '\')">' +
+      '<div class="universe-item-img-wrap">' +
+        (w.image_url ? '<img class="universe-item-img" src="' + w.image_url + '" style="display:block">' : '') +
+        '<div class="universe-item-placeholder" style="' + (w.image_url ? 'display:none' : '') + '">' + (w.type === "anime" ? "📺" : "📖") + '</div>' +
+      '</div>' +
+      '<div class="universe-item-info">' +
+        '<div class="universe-item-title">' + w.title + '</div>' +
+        '<div class="universe-item-meta"><span class="badge badge-' + w.type + ' badge-sm">' + typeBadge + '</span> ★ ' + (w.rating || "—") + '/10 · ' + progress + '</div>' +
+      '</div>' +
+      '<div class="universe-item-check">✓</div></div>';
+  });
+  html += '</div></div>';
+
+  // Button to search for more related works
+  var mainWork = groupWorks.find(function(w) { return w.mal_id; });
+  if (mainWork) {
+    html += '<div class="universe-explore"><button class="btn-explore" onclick="exploreFull(\'' + mainWork.id + '\')">🔍 Explorer l\'univers complet</button></div>';
+  }
+
+  document.getElementById("universe-content").innerHTML = html;
+}
+
+async function exploreFull(workId) {
+  var work = works.find(function(w) { return w.id === workId; });
+  if (!work || !work.mal_id) return;
+
+  document.getElementById("universe-loading").style.display = "flex";
+  currentUniverseId = work.universe_id;
+
+  // Recursive crawl (same as openUniverse)
+  var visited = {};
+  var allEntries = [];
+  var queue = [];
+  var statusEl = document.getElementById("universe-loading");
+
+  // Start from ALL works in this universe that have mal_id
+  var uniWorks = works.filter(function(w) { return w.universe_id === work.universe_id && w.mal_id; });
+  uniWorks.forEach(function(w) {
+    visited[w.type + "_" + w.mal_id] = true;
+    queue.push({ mal_id: w.mal_id, type: w.type });
+  });
+
+  while (queue.length > 0) {
+    var current = queue.shift();
+    var endpoint = current.type === "manga" ? "manga" : "anime";
+    try {
+      statusEl.querySelector("span").textContent = "Exploration... " + allEntries.length + " œuvres trouvées";
+      var resp = await fetch("https://api.jikan.moe/v4/" + endpoint + "/" + current.mal_id + "/relations");
+      var data = await resp.json();
+      if (data.data) {
+        data.data.forEach(function(rel) {
+          rel.entry.forEach(function(e) {
+            var key = e.type.toLowerCase() + "_" + e.mal_id;
+            if (!visited[key]) {
+              visited[key] = true;
+              allEntries.push({ mal_id: e.mal_id, name: e.name, type: e.type.toLowerCase(), relation: rel.relation });
+              if (e.type.toLowerCase() === "anime" || e.type.toLowerCase() === "manga") {
+                queue.push({ mal_id: e.mal_id, type: e.type.toLowerCase() });
+              }
+            }
+          });
+        });
+      }
+      await new Promise(function(r) { setTimeout(r, 400); });
+    } catch (err) { console.log("Crawl error:", err); }
+  }
+
+  document.getElementById("universe-loading").style.display = "none";
+
+  var myMalIds = {};
+  works.forEach(function(w) { if (w.mal_id) myMalIds[w.type + "_" + w.mal_id] = w; });
+
+  // Auto-assign universe_id
+  for (var i = 0; i < allEntries.length; i++) {
+    var key = allEntries[i].type + "_" + allEntries[i].mal_id;
+    var existing = myMalIds[key];
+    if (existing && !existing.universe_id) {
+      await sb.from("mv_works").update({ universe_id: work.universe_id }).eq("id", existing.id);
+      existing.universe_id = work.universe_id;
+    }
+  }
+
+  // Filter out already owned
+  var unownedEntries = allEntries.filter(function(e) { return !myMalIds[e.type + "_" + e.mal_id]; });
+
+  // Re-render with full group + unowned
+  openUniverseGroup(work.universe_id, work.title);
+  if (unownedEntries.length > 0) {
+    var extraHtml = '<div class="universe-group"><h3 class="universe-group-title">Pas encore dans ma collection</h3><div class="universe-items">';
+    unownedEntries.forEach(function(e) {
+      var typeBadge = e.type === "anime" ? "アニメ" : "漫画";
+      extraHtml += '<div class="universe-item not-owned" onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')">' +
+        '<div class="universe-item-img-wrap"><img id="uni-img-' + e.mal_id + '" class="universe-item-img" src="" alt="" style="display:none"><div class="universe-item-placeholder">' + (e.type === "anime" ? "📺" : "📖") + '</div></div>' +
+        '<div class="universe-item-info"><div class="universe-item-title">' + e.name + '</div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
+        '<div class="universe-item-add">+</div></div>';
+    });
+    extraHtml += '</div></div>';
+    document.getElementById("universe-content").innerHTML += extraHtml;
+
+    // Load images progressively
+    for (var i = 0; i < unownedEntries.length; i++) {
+      try {
+        var e = unownedEntries[i];
+        var detResp = await fetch("https://api.jikan.moe/v4/" + e.type + "/" + e.mal_id);
+        var detData = await detResp.json();
+        if (detData.data && detData.data.images && detData.data.images.jpg) {
+          var imgEl = document.getElementById("uni-img-" + e.mal_id);
+          if (imgEl) { imgEl.src = detData.data.images.jpg.image_url || ""; imgEl.style.display = "block"; }
+          var scoreEl = document.getElementById("uni-score-" + e.mal_id);
+          if (scoreEl && detData.data.score) { scoreEl.textContent = "★ " + detData.data.score; }
+          var epsEl = document.getElementById("uni-eps-" + e.mal_id);
+          if (epsEl) { epsEl.textContent = detData.data.episodes ? detData.data.episodes + " ep." : detData.data.volumes ? detData.data.volumes + " vol." : ""; }
+        }
+        if (i < unownedEntries.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
+      } catch (err) { console.log("Detail error:", err); }
+    }
+  }
+}
+
+function renderUniverseList(entries, myMalIds, uniId) {
   var groups = {};
   entries.forEach(function(e) {
     var rel = RELATION_LABELS[e.relation] || e.relation;
     if (!groups[rel]) groups[rel] = [];
     groups[rel].push(e);
   });
-
   var html = "";
   for (var rel in groups) {
     html += '<div class="universe-group"><h3 class="universe-group-title">' + rel + '</h3><div class="universe-items">';
     groups[rel].forEach(function(e) {
-      var key = e.type.toLowerCase() + "_" + e.mal_id;
+      var key = e.type + "_" + e.mal_id;
       var owned = myMalIds[key];
       var cls = owned ? "universe-item owned" : "universe-item not-owned";
       var typeBadge = e.type === "anime" ? "アニメ" : "漫画";
-      html += '<div class="' + cls + '" onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type.toLowerCase() + '\',' + !!owned + ')">' +
-        '<div class="universe-item-img-wrap">' +
-          '<img id="uni-img-' + e.mal_id + '" class="universe-item-img" src="" alt="" style="display:none">' +
-          '<div class="universe-item-placeholder">' + (e.type === "anime" ? "📺" : "📖") + '</div>' +
-        '</div>' +
-        '<div class="universe-item-info">' +
-          '<div class="universe-item-title">' + e.name + '</div>' +
-          '<div class="universe-item-meta"><span class="badge badge-' + e.type.toLowerCase() + ' badge-sm">' + typeBadge + '</span> <span id="uni-score-' + e.mal_id + '" class="universe-item-score"></span></div>' +
-        '</div>' +
+      var clickAction = owned ? 'onclick="closeUniverse();editWork(\'' + owned.id + '\')"' : 'onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')"';
+      html += '<div class="' + cls + '" ' + clickAction + '>' +
+        '<div class="universe-item-img-wrap"><img id="uni-img-' + e.mal_id + '" class="universe-item-img" src="" alt="" style="display:none"><div class="universe-item-placeholder">' + (e.type === "anime" ? "📺" : "📖") + '</div></div>' +
+        '<div class="universe-item-info"><div class="universe-item-title">' + e.name + '</div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
         (owned ? '<div class="universe-item-check">✓</div>' : '<div class="universe-item-add">+</div>') +
       '</div>';
     });
@@ -409,15 +585,14 @@ function renderUniverseList(entries, myMalIds) {
   document.getElementById("universe-content").innerHTML = html;
 }
 
-function onUniverseItemClick(malId, type, owned) {
-  if (owned) return; // Already in collection
+function onUniverseItemClick(malId, type) {
   closeUniverse();
   if (type === "anime") {
     openModal("anime");
-    // Small delay to let modal render
     setTimeout(function() {
       document.getElementById("fa-step-search").style.display = "none";
       document.getElementById("fa-form").style.display = "block";
+      animeForm.universe_id = currentUniverseId;
       selectAnime(malId);
     }, 100);
   } else {
@@ -425,6 +600,7 @@ function onUniverseItemClick(malId, type, owned) {
     setTimeout(function() {
       document.getElementById("fm-step-search").style.display = "none";
       document.getElementById("fm-form").style.display = "block";
+      mangaForm.universe_id = currentUniverseId;
       selectManga(malId);
     }, 100);
   }
@@ -432,6 +608,7 @@ function onUniverseItemClick(malId, type, owned) {
 
 function closeUniverse() {
   document.getElementById("modal-universe").style.display = "none";
+  renderWorks(); // Refresh grid to show updated groups
 }
 
 // ============================================
@@ -476,18 +653,34 @@ function renderWorks() {
     if (sortBy === "title") return a.title.localeCompare(b.title);
     return new Date(b.created_at) - new Date(a.created_at);
   });
+
+  // Group by universe_id: only show one card per universe
+  var seenUniverse = {};
+  var displayList = [];
+  filtered.forEach(function(w) {
+    if (w.universe_id) {
+      if (!seenUniverse[w.universe_id]) {
+        seenUniverse[w.universe_id] = true;
+        var groupCount = works.filter(function(x) { return x.universe_id === w.universe_id; }).length;
+        displayList.push({ work: w, groupCount: groupCount });
+      }
+    } else {
+      displayList.push({ work: w, groupCount: 0 });
+    }
+  });
+
   var grid = document.getElementById("works-grid");
   var empty = document.getElementById("empty-state");
-  if (filtered.length > 0) {
+  if (displayList.length > 0) {
     grid.style.display = "grid"; empty.style.display = "none";
-    grid.innerHTML = filtered.map(function(w, i) { return renderCard(w, i); }).join("");
+    grid.innerHTML = displayList.map(function(item, i) { return renderCard(item.work, i, item.groupCount); }).join("");
   } else {
     grid.style.display = "none"; empty.style.display = "block";
     empty.innerHTML = works.length === 0 ? '<div class="emoji">📚</div><p>Ta collection est vide</p><p class="sub">Commence par ajouter ton premier manga ou anime !</p>' : '<div class="emoji">🔍</div><p>Aucune œuvre trouvée</p><p class="sub">Essaie de modifier tes filtres</p>';
   }
 }
 
-function renderCard(w, i) {
+function renderCard(w, i, groupCount) {
   var isManga = w.type === "manga";
   var progress = isManga ? (w.volumes_read || "?") + "/" + (w.volumes_vo || "?") + " vol." : (w.episodes_watched || "?") + "/" + (w.episodes_total || "?") + " ep.";
   var subtitle = "";
@@ -495,18 +688,21 @@ function renderCard(w, i) {
   else { var p = []; if (w.studio) p.push(w.studio); if (w.year) p.push(w.year); if (w.platform && PLATFORM_LABELS[w.platform]) p.push(PLATFORM_LABELS[w.platform]); subtitle = p.join(" · "); }
   var extraBadges = "";
   if (isManga && w.fr_volumes) { extraBadges = '<span class="badge badge-fr">VF T' + w.fr_volumes + '</span>'; }
+  if (groupCount > 1) { extraBadges += '<span class="badge badge-group">' + groupCount + ' œuvres</span>'; }
   var genres = (w.genres || []).slice(0, 3).map(function(g) { return '<span>' + g + '</span>'; }).join("");
   var placeholder = isManga ? "📖" : "📺";
   var image = w.image_url ? '<img class="work-card-image" src="' + w.image_url + '" alt="' + w.title + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' : "";
   var malScoreHtml = w.mal_score ? '<span class="dim"> · MAL ' + w.mal_score + '</span>' : '';
-  var cardClick = w.mal_id ? ' onclick="openUniverse(\'' + w.id + '\')"' : '';
-  var cardClass = "work-card" + (w.mal_id ? " has-universe" : "");
+  var hasUniverse = w.universe_id || w.mal_id;
+  var cardClick = hasUniverse ? ' onclick="openUniverse(\'' + w.id + '\')"' : '';
+  var cardClass = "work-card" + (hasUniverse ? " has-universe" : "");
+  var hintText = groupCount > 1 ? "🌐 " + groupCount + " œuvres" : "🌐 Voir l'univers";
 
   return '<div class="' + cardClass + '" style="animation:slideUp 0.4s ease ' + (i * 0.04) + 's both"' + cardClick + '>' +
     '<div class="work-card-image-wrap">' + image +
       '<div class="work-card-placeholder" style="' + (w.image_url ? 'display:none' : '') + '">' + placeholder + '</div>' +
       '<div class="work-card-gradient"></div>' +
-      (w.mal_id ? '<div class="work-card-universe-hint">🌐 Voir l\'univers</div>' : '') +
+      (hasUniverse ? '<div class="work-card-universe-hint">' + hintText + '</div>' : '') +
       '<div class="work-card-badges"><span class="badge badge-' + w.type + '">' + (isManga ? "漫画" : "アニメ") + '</span><span class="badge badge-status badge-' + w.status + '">' + (STATUS_LABELS[w.status] || w.status) + '</span>' + extraBadges + '</div>' +
       '<div class="work-card-actions"><button class="work-card-action-btn edit" onclick="event.stopPropagation();editWork(\'' + w.id + '\')">✎</button><button class="work-card-action-btn delete" onclick="event.stopPropagation();deleteWork(\'' + w.id + '\')">✕</button></div>' +
       '<div class="work-card-info"><div class="work-card-meta">★ ' + (w.rating || "—") + '/10<span class="dim">· ' + progress + '</span>' + malScoreHtml + '</div><h3 class="work-card-title">' + w.title + '</h3>' + (subtitle ? '<div class="work-card-subtitle">' + subtitle + '</div>' : '') + (genres ? '<div class="work-card-genres">' + genres + '</div>' : '') + '</div></div></div>';
@@ -563,7 +759,7 @@ function openMangaModal(work) {
     document.getElementById("fm-notes").value = work.notes || "";
     document.getElementById("fm-vf-status").style.display = "none";
     mangaForm.rating = work.rating || 7; mangaForm.genres = (work.genres || []).slice();
-    mangaForm.mal_id = work.mal_id || null; mangaForm.mal_score = work.mal_score || null;
+    mangaForm.mal_id = work.mal_id || null; mangaForm.mal_score = work.mal_score || null; mangaForm.universe_id = work.universe_id || null;
   } else {
     titleEl.textContent = "Ajouter un manga 漫画"; btnEl.textContent = "Ajouter";
     document.getElementById("fm-step-search").style.display = "block";
@@ -596,7 +792,7 @@ function openAnimeModal(work) {
     document.getElementById("fa-image").value = work.image_url || "";
     document.getElementById("fa-notes").value = work.notes || "";
     animeForm.rating = work.rating || 7; animeForm.genres = (work.genres || []).slice();
-    animeForm.mal_id = work.mal_id || null; animeForm.mal_score = work.mal_score || null;
+    animeForm.mal_id = work.mal_id || null; animeForm.mal_score = work.mal_score || null; animeForm.universe_id = work.universe_id || null;
   } else {
     titleEl.textContent = "Ajouter un anime アニメ"; btnEl.textContent = "Ajouter";
     document.getElementById("fa-step-search").style.display = "block";
@@ -639,7 +835,7 @@ async function saveWork(type) {
       available_fr: !!parseInt(document.getElementById("fm-fr-volumes").value),
       image_url: document.getElementById("fm-image").value || null,
       notes: document.getElementById("fm-notes").value || null,
-      mal_id: mangaForm.mal_id, mal_score: mangaForm.mal_score,
+      mal_id: mangaForm.mal_id, mal_score: mangaForm.mal_score, universe_id: mangaForm.universe_id,
     };
   } else {
     var title = document.getElementById("fa-title").value.trim(); if (!title) return;
@@ -657,7 +853,7 @@ async function saveWork(type) {
       seasons_count: parseInt(document.getElementById("fa-seasons").value) || null,
       image_url: document.getElementById("fa-image").value || null,
       notes: document.getElementById("fa-notes").value || null,
-      mal_id: animeForm.mal_id, mal_score: animeForm.mal_score,
+      mal_id: animeForm.mal_id, mal_score: animeForm.mal_score, universe_id: animeForm.universe_id,
     };
   }
   btn.disabled = true; btn.textContent = "Sauvegarde...";
