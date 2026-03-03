@@ -16,6 +16,7 @@ export default {
 
 async function handleVF(url) {
   const title = url.searchParams.get("title");
+  const debug = url.searchParams.get("debug") === "1";
 
   if (!title) {
     return jsonResponse({ error: "title required" }, 400);
@@ -23,21 +24,36 @@ async function handleVF(url) {
 
   const result = { title, vf_volumes: null, vo_volumes: null, publisher: null, source: null };
 
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.5",
+    "Referer": "https://www.nautiljon.com/",
+    "Connection": "keep-alive"
+  };
+
   try {
     // Step 1: Search on Nautiljon
     const searchUrl = "https://www.nautiljon.com/mangas/?q=" + encodeURIComponent(title);
-    const searchResp = await fetch(searchUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "fr-FR,fr;q=0.9"
-      }
-    });
+    const searchResp = await fetch(searchUrl, { headers });
     const searchHtml = await searchResp.text();
 
+    if (debug) {
+      result._searchUrl = searchUrl;
+      result._searchStatus = searchResp.status;
+      result._searchLength = searchHtml.length;
+      result._searchTitle = (searchHtml.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || "no title";
+      result._searchSnippet = searchHtml.substring(0, 500);
+    }
+
     // Find first manga detail link
-    const linkMatch = searchHtml.match(/href="(\/mangas\/[^"?#]+\.html)"/);
+    let linkMatch = searchHtml.match(/href="(\/mangas\/[^"?#]+\.html)"/);
     if (!linkMatch) {
+      linkMatch = searchHtml.match(/href='(\/mangas\/[^'?#]+\.html)'/);
+    }
+
+    if (!linkMatch) {
+      if (debug) result._noLinkFound = true;
       return jsonResponse(result);
     }
 
@@ -45,14 +61,16 @@ async function handleVF(url) {
     result.source = detailUrl;
 
     // Step 2: Fetch detail page
-    const detailResp = await fetch(detailUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "fr-FR,fr;q=0.9"
-      }
-    });
+    const detailResp = await fetch(detailUrl, { headers });
     const detailHtml = await detailResp.text();
+
+    if (debug) {
+      result._detailStatus = detailResp.status;
+      result._detailLength = detailHtml.length;
+      result._detailTitle = (detailHtml.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || "no title";
+      const volIdx = detailHtml.indexOf("olumes");
+      if (volIdx >= 0) result._volContext = detailHtml.substring(Math.max(0, volIdx - 80), volIdx + 120);
+    }
 
     // Parse VF volumes
     const vfMatch = detailHtml.match(/Nb\s*volumes?\s*VF\s*:\s*(\d+)/i);
