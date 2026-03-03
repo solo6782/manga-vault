@@ -473,8 +473,16 @@ select.modal-input { cursor: pointer; }
 .universe-item-score { color: #f59e0b; }
 
 .universe-item-check { color: #22c55e; font-size: 18px; font-weight: bold; flex-shrink: 0; }
-.universe-item-add { color: #6366f1; font-size: 22px; font-weight: bold; flex-shrink: 0; opacity: 0.5; transition: opacity 0.2s; }
+.universe-item-add { color: #6366f1; font-size: 22px; font-weight: bold; flex-shrink: 0; opacity: 0.5; transition: opacity 0.2s; cursor: pointer; }
 .universe-item:hover .universe-item-add { opacity: 1; }
+
+.universe-item-actions { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+.universe-mal-link {
+  font-size: 10px; color: #6366f1; text-decoration: none; padding: 3px 8px;
+  border: 1px solid rgba(99,102,241,0.3); border-radius: 6px; opacity: 0.6;
+  transition: opacity 0.2s, background 0.2s; white-space: nowrap;
+}
+.universe-mal-link:hover { opacity: 1; background: rgba(99,102,241,0.15); }
 
 .badge-sm { font-size: 10px; padding: 1px 6px; }
 
