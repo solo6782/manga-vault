@@ -468,6 +468,7 @@ select.modal-input { cursor: pointer; }
 
 .universe-item-info { flex: 1; min-width: 0; }
 .universe-item-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.universe-item-en { font-size: 11px; color: #8b8ba0; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .universe-item-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 12px; color: #aaa; }
 .universe-item-score { color: #f59e0b; }
 

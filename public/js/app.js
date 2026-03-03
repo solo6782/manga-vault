@@ -430,6 +430,8 @@ async function openUniverse(workId) {
         if (scoreEl && detData.data.score) { scoreEl.textContent = "★ " + detData.data.score; }
         var epsEl = document.getElementById("uni-eps-" + e.mal_id);
         if (epsEl) { epsEl.textContent = detData.data.episodes ? detData.data.episodes + " ep." : detData.data.volumes ? detData.data.volumes + " vol." : ""; }
+        var enEl = document.getElementById("uni-en-" + e.mal_id);
+        if (enEl && detData.data.title_english && detData.data.title_english !== detData.data.title) { enEl.textContent = detData.data.title_english; }
       }
       if (i < allEntries.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
     } catch (err) { console.log("Detail error:", err); }
@@ -545,7 +547,7 @@ async function exploreFull(workId) {
       var typeBadge = e.type === "anime" ? "アニメ" : "漫画";
       extraHtml += '<div class="universe-item not-owned" onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')">' +
         '<div class="universe-item-img-wrap"><img id="uni-img-' + e.mal_id + '" class="universe-item-img" src="" alt="" style="display:none"><div class="universe-item-placeholder">' + (e.type === "anime" ? "📺" : "📖") + '</div></div>' +
-        '<div class="universe-item-info"><div class="universe-item-title">' + e.name + '</div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
+        '<div class="universe-item-info"><div class="universe-item-title">' + e.name + '</div><div id="uni-en-' + e.mal_id + '" class="universe-item-en"></div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
         '<div class="universe-item-add">+</div></div>';
     });
     extraHtml += '</div></div>';
@@ -564,6 +566,8 @@ async function exploreFull(workId) {
           if (scoreEl && detData.data.score) { scoreEl.textContent = "★ " + detData.data.score; }
           var epsEl = document.getElementById("uni-eps-" + e.mal_id);
           if (epsEl) { epsEl.textContent = detData.data.episodes ? detData.data.episodes + " ep." : detData.data.volumes ? detData.data.volumes + " vol." : ""; }
+          var enEl = document.getElementById("uni-en-" + e.mal_id);
+          if (enEl && detData.data.title_english && detData.data.title_english !== detData.data.title) { enEl.textContent = detData.data.title_english; }
         }
         if (i < unownedEntries.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
       } catch (err) { console.log("Detail error:", err); }
@@ -589,7 +593,7 @@ function renderUniverseList(entries, myMalIds, uniId) {
       var clickAction = owned ? 'onclick="closeUniverse();editWork(\'' + owned.id + '\')"' : 'onclick="onUniverseItemClick(' + e.mal_id + ',\'' + e.type + '\')"';
       html += '<div class="' + cls + '" ' + clickAction + '>' +
         '<div class="universe-item-img-wrap"><img id="uni-img-' + e.mal_id + '" class="universe-item-img" src="" alt="" style="display:none"><div class="universe-item-placeholder">' + (e.type === "anime" ? "📺" : "📖") + '</div></div>' +
-        '<div class="universe-item-info"><div class="universe-item-title">' + e.name + '</div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
+        '<div class="universe-item-info"><div class="universe-item-title">' + e.name + '</div><div id="uni-en-' + e.mal_id + '" class="universe-item-en"></div><div class="universe-item-meta"><span class="badge badge-' + e.type + ' badge-sm">' + typeBadge + '</span> <span id="uni-score-' + e.mal_id + '"></span> <span id="uni-eps-' + e.mal_id + '"></span></div></div>' +
         (owned ? '<div class="universe-item-check">✓</div>' : '<div class="universe-item-add">+</div>') +
       '</div>';
     });
