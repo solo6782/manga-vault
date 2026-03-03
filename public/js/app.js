@@ -1,5 +1,5 @@
 // ============================================
-// MangaVault — Application Logic v3
+// MangaVault — Application Logic v4
 // ============================================
 
 var GENRES = ["Action", "Adventure", "Comedy", "Drama", "Fantasy", "Horror", "Mystery", "Romance", "Sci-Fi", "Slice of Life", "Sports", "Thriller"];
@@ -67,6 +67,58 @@ async function loadWorks() {
 }
 
 // ============================================
+// JIKAN HELPERS
+// ============================================
+
+function mapJikanGenres(data) {
+  var genres = [];
+  if (data.genres) {
+    data.genres.forEach(function(g) {
+      var name = g.name;
+      if (name === "Science Fiction") name = "Sci-Fi";
+      if (GENRES.indexOf(name) >= 0) genres.push(name);
+    });
+  }
+  if (data.themes) {
+    data.themes.forEach(function(t) {
+      if (GENRES.indexOf(t.name) >= 0 && genres.indexOf(t.name) < 0) genres.push(t.name);
+    });
+  }
+  return genres;
+}
+
+function mapJikanSeason(season) {
+  if (!season) return "";
+  var s = season.toLowerCase();
+  if (s === "spring") return "printemps";
+  if (s === "summer") return "ete";
+  if (s === "fall") return "automne";
+  if (s === "winter") return "hiver";
+  return "";
+}
+
+function mapJikanPlatform(streaming) {
+  if (!streaming || streaming.length === 0) return "";
+  var map = {
+    "crunchyroll": "crunchyroll", "netflix": "netflix", "disney plus": "disney",
+    "disney+": "disney", "amazon prime video": "prime", "prime video": "prime",
+    "hidive": "hidive", "adn": "adn", "anime digital network": "adn"
+  };
+  for (var i = 0; i < streaming.length; i++) {
+    var name = (streaming[i].name || "").toLowerCase();
+    for (var key in map) {
+      if (name.indexOf(key) >= 0) return map[key];
+    }
+  }
+  return "";
+}
+
+function reverseAuthorName(name) {
+  var parts = name.split(", ");
+  return parts.length === 2 ? parts[1] + " " + parts[0] : name;
+}
+
+// ============================================
 // JIKAN API - MANGA SEARCH
 // ============================================
 
@@ -88,7 +140,7 @@ async function searchManga(query) {
     var data = await response.json();
     document.getElementById("fm-search-spinner").style.display = "none";
     if (data.data && data.data.length > 0) {
-      renderSearchResults(data.data);
+      renderMangaSearchResults(data.data);
     } else {
       document.getElementById("fm-search-results").innerHTML = '<div class="search-no-results">Aucun résultat. Essaie un autre titre ou passe en saisie manuelle.</div>';
       document.getElementById("fm-search-results").style.display = "block";
@@ -101,19 +153,18 @@ async function searchManga(query) {
   }
 }
 
-function renderSearchResults(results) {
+function renderMangaSearchResults(results) {
   var container = document.getElementById("fm-search-results");
   container.innerHTML = results.map(function(m) {
     var img = (m.images && m.images.jpg && m.images.jpg.small_image_url) || "";
     var author = (m.authors && m.authors.length > 0) ? m.authors[0].name || "" : "";
     var year = (m.published && m.published.prop && m.published.prop.from) ? m.published.prop.from.year : "";
     var vols = m.volumes || "?";
-    var status = m.status || "";
     return '<button class="search-result-item" onclick="selectManga(' + m.mal_id + ')">' +
       '<div class="search-result-img">' + (img ? '<img src="' + img + '" alt="">' : '<span>📖</span>') + '</div>' +
       '<div class="search-result-info">' +
         '<div class="search-result-title">' + (m.title || "") + '</div>' +
-        '<div class="search-result-meta">' + (author ? author + ' · ' : '') + (year ? year + ' · ' : '') + vols + ' vol.' + (status ? ' · ' + status : '') + '</div>' +
+        '<div class="search-result-meta">' + (author ? author + ' · ' : '') + (year ? year + ' · ' : '') + vols + ' vol.</div>' +
       '</div></button>';
   }).join("");
   container.style.display = "block";
@@ -122,31 +173,20 @@ function renderSearchResults(results) {
 async function selectManga(malId) {
   document.getElementById("fm-search-results").style.display = "none";
   document.getElementById("fm-search-spinner").style.display = "block";
-
   try {
     var response = await fetch("https://api.jikan.moe/v4/manga/" + malId + "/full");
     var data = await response.json();
     var m = data.data;
     if (!m) return;
 
-    // Title
     document.getElementById("fm-title").value = m.title || "";
-
-    // Year
     document.getElementById("fm-year").value = (m.published && m.published.prop && m.published.prop.from) ? m.published.prop.from.year || "" : "";
-
-    // Volumes VO
     document.getElementById("fm-volumes-vo").value = m.volumes || "";
 
-    // Author (reverse "LastName, FirstName")
     if (m.authors && m.authors.length > 0) {
-      var authorName = m.authors[0].name || "";
-      var parts = authorName.split(", ");
-      if (parts.length === 2) authorName = parts[1] + " " + parts[0];
-      document.getElementById("fm-author").value = authorName;
+      document.getElementById("fm-author").value = reverseAuthorName(m.authors[0].name || "");
     }
 
-    // Format (demographic)
     var format = "";
     if (m.demographics && m.demographics.length > 0) {
       var demo = m.demographics[0].name.toLowerCase();
@@ -157,7 +197,6 @@ async function selectManga(malId) {
     }
     document.getElementById("fm-format").value = format;
 
-    // Publication status
     var pubStatus = "en_cours";
     if (m.status) {
       if (m.status.toLowerCase().indexOf("finished") >= 0) pubStatus = "termine";
@@ -165,37 +204,17 @@ async function selectManga(malId) {
     }
     document.getElementById("fm-pub-status").value = pubStatus;
 
-    // Genres
-    mangaForm.genres = [];
-    if (m.genres) {
-      m.genres.forEach(function(g) {
-        var name = g.name;
-        if (name === "Science Fiction") name = "Sci-Fi";
-        if (GENRES.indexOf(name) >= 0) mangaForm.genres.push(name);
-      });
-    }
-    if (m.themes) {
-      m.themes.forEach(function(t) {
-        if (GENRES.indexOf(t.name) >= 0 && mangaForm.genres.indexOf(t.name) < 0) mangaForm.genres.push(t.name);
-      });
-    }
+    mangaForm.genres = mapJikanGenres(m);
 
-    // Image
     if (m.images && m.images.jpg) {
       document.getElementById("fm-image").value = m.images.jpg.large_image_url || m.images.jpg.image_url || "";
     }
 
-    // Show preview
     showMangaPreview(m);
-
-    // Show form, hide search
     document.getElementById("fm-step-search").style.display = "none";
     document.getElementById("fm-form").style.display = "block";
     buildStars("fm-stars", mangaForm);
     buildGenres("fm-genres", mangaForm);
-
-    // Auto-search VF in background
-    setTimeout(function() { searchVF(); }, 300);
 
   } catch (err) {
     console.error("Jikan detail error:", err);
@@ -206,15 +225,9 @@ async function selectManga(malId) {
 
 function showMangaPreview(m) {
   var img = (m.images && m.images.jpg && m.images.jpg.image_url) || "";
-  var author = "";
-  if (m.authors && m.authors.length > 0) {
-    var parts = (m.authors[0].name || "").split(", ");
-    author = parts.length === 2 ? parts[1] + " " + parts[0] : parts[0];
-  }
+  var author = (m.authors && m.authors.length > 0) ? reverseAuthorName(m.authors[0].name || "") : "";
   var year = (m.published && m.published.prop && m.published.prop.from && m.published.prop.from.year) ? m.published.prop.from.year : "";
-
-  var preview = document.getElementById("fm-preview");
-  preview.innerHTML =
+  document.getElementById("fm-preview").innerHTML =
     '<div class="preview-card">' +
       (img ? '<img src="' + img + '" alt="" class="preview-img">' : '') +
       '<div class="preview-info">' +
@@ -223,7 +236,7 @@ function showMangaPreview(m) {
         '<div class="preview-meta">Score MAL: ' + (m.score || "N/A") + ' · ' + (m.volumes || "?") + ' volumes</div>' +
         '<button class="btn-change-manga" onclick="resetMangaSearch()">Changer ↺</button>' +
       '</div></div>';
-  preview.style.display = "block";
+  document.getElementById("fm-preview").style.display = "block";
 }
 
 function showManualMangaForm() {
@@ -264,17 +277,167 @@ function resetMangaSearch() {
 function searchVF() {
   var title = document.getElementById("fm-title").value.trim();
   if (!title) return;
-
   var statusEl = document.getElementById("fm-vf-status");
   var nautUrl = "https://www.nautiljon.com/mangas/?q=" + encodeURIComponent(title);
-
-  // Open Nautiljon in new tab
   window.open(nautUrl, "_blank");
-
-  // Show helper message
   statusEl.style.display = "block";
   statusEl.className = "vf-status searching";
   statusEl.innerHTML = 'Nautiljon ouvert ↗ — Cherche <strong>"Nb volumes VF"</strong> sur la fiche et entre le nombre ci-dessus.';
+}
+
+// ============================================
+// JIKAN API - ANIME SEARCH
+// ============================================
+
+function onAnimeSearch() {
+  var query = document.getElementById("fa-search").value.trim();
+  clearTimeout(searchTimeout);
+  if (query.length < 2) {
+    document.getElementById("fa-search-results").style.display = "none";
+    document.getElementById("fa-manual-btn").style.display = "none";
+    return;
+  }
+  document.getElementById("fa-search-spinner").style.display = "block";
+  searchTimeout = setTimeout(function() { searchAnime(query); }, 500);
+}
+
+async function searchAnime(query) {
+  try {
+    var response = await fetch("https://api.jikan.moe/v4/anime?q=" + encodeURIComponent(query) + "&limit=6&order_by=popularity&sort=asc");
+    var data = await response.json();
+    document.getElementById("fa-search-spinner").style.display = "none";
+    if (data.data && data.data.length > 0) {
+      renderAnimeSearchResults(data.data);
+    } else {
+      document.getElementById("fa-search-results").innerHTML = '<div class="search-no-results">Aucun résultat. Essaie un autre titre ou passe en saisie manuelle.</div>';
+      document.getElementById("fa-search-results").style.display = "block";
+    }
+    document.getElementById("fa-manual-btn").style.display = "block";
+  } catch (err) {
+    console.error("Jikan API error:", err);
+    document.getElementById("fa-search-spinner").style.display = "none";
+    document.getElementById("fa-manual-btn").style.display = "block";
+  }
+}
+
+function renderAnimeSearchResults(results) {
+  var container = document.getElementById("fa-search-results");
+  container.innerHTML = results.map(function(a) {
+    var img = (a.images && a.images.jpg && a.images.jpg.small_image_url) || "";
+    var studio = (a.studios && a.studios.length > 0) ? a.studios[0].name || "" : "";
+    var year = a.year || "";
+    var eps = a.episodes || "?";
+    var type = a.type || "";
+    return '<button class="search-result-item" onclick="selectAnime(' + a.mal_id + ')">' +
+      '<div class="search-result-img">' + (img ? '<img src="' + img + '" alt="">' : '<span>📺</span>') + '</div>' +
+      '<div class="search-result-info">' +
+        '<div class="search-result-title">' + (a.title || "") + '</div>' +
+        '<div class="search-result-meta">' + (studio ? studio + ' · ' : '') + (year ? year + ' · ' : '') + eps + ' ep.' + (type ? ' · ' + type : '') + '</div>' +
+      '</div></button>';
+  }).join("");
+  container.style.display = "block";
+}
+
+async function selectAnime(malId) {
+  document.getElementById("fa-search-results").style.display = "none";
+  document.getElementById("fa-search-spinner").style.display = "block";
+  try {
+    var response = await fetch("https://api.jikan.moe/v4/anime/" + malId + "/full");
+    var data = await response.json();
+    var a = data.data;
+    if (!a) return;
+
+    // Title
+    document.getElementById("fa-title").value = a.title || "";
+
+    // Studio
+    if (a.studios && a.studios.length > 0) {
+      document.getElementById("fa-studio").value = a.studios[0].name || "";
+    }
+
+    // Year
+    document.getElementById("fa-year").value = a.year || "";
+
+    // Season
+    document.getElementById("fa-season").value = mapJikanSeason(a.season);
+
+    // Platform (from streaming data)
+    document.getElementById("fa-platform").value = mapJikanPlatform(a.streaming);
+
+    // Episodes
+    document.getElementById("fa-episodes-total").value = a.episodes || "";
+
+    // Genres
+    animeForm.genres = mapJikanGenres(a);
+
+    // Image
+    if (a.images && a.images.jpg) {
+      document.getElementById("fa-image").value = a.images.jpg.large_image_url || a.images.jpg.image_url || "";
+    }
+
+    // Show preview
+    showAnimePreview(a);
+
+    // Show form, hide search
+    document.getElementById("fa-step-search").style.display = "none";
+    document.getElementById("fa-form").style.display = "block";
+    buildStars("fa-stars", animeForm);
+    buildGenres("fa-genres", animeForm);
+
+  } catch (err) {
+    console.error("Jikan detail error:", err);
+    alert("Erreur lors de la récupération des détails.");
+  }
+  document.getElementById("fa-search-spinner").style.display = "none";
+}
+
+function showAnimePreview(a) {
+  var img = (a.images && a.images.jpg && a.images.jpg.image_url) || "";
+  var studio = (a.studios && a.studios.length > 0) ? a.studios[0].name : "";
+  var year = a.year || "";
+  var season = a.season ? a.season.charAt(0).toUpperCase() + a.season.slice(1) : "";
+  var eps = a.episodes || "?";
+
+  document.getElementById("fa-preview").innerHTML =
+    '<div class="preview-card">' +
+      (img ? '<img src="' + img + '" alt="" class="preview-img">' : '') +
+      '<div class="preview-info">' +
+        '<div class="preview-title">' + (a.title || "") + '</div>' +
+        '<div class="preview-meta">' + studio + (year ? ' · ' + (season ? season + ' ' : '') + year : '') + '</div>' +
+        '<div class="preview-meta">Score MAL: ' + (a.score || "N/A") + ' · ' + eps + ' épisodes' + (a.type ? ' · ' + a.type : '') + '</div>' +
+        '<button class="btn-change-manga" onclick="resetAnimeSearch()">Changer ↺</button>' +
+      '</div></div>';
+  document.getElementById("fa-preview").style.display = "block";
+}
+
+function showManualAnimeForm() {
+  document.getElementById("fa-step-search").style.display = "none";
+  document.getElementById("fa-form").style.display = "block";
+  document.getElementById("fa-preview").style.display = "none";
+  buildStars("fa-stars", animeForm);
+  buildGenres("fa-genres", animeForm);
+}
+
+function resetAnimeSearch() {
+  document.getElementById("fa-step-search").style.display = "block";
+  document.getElementById("fa-form").style.display = "none";
+  document.getElementById("fa-search").value = "";
+  document.getElementById("fa-search-results").style.display = "none";
+  document.getElementById("fa-manual-btn").style.display = "none";
+  document.getElementById("fa-preview").style.display = "none";
+  document.getElementById("fa-title").value = "";
+  document.getElementById("fa-studio").value = "";
+  document.getElementById("fa-year").value = "";
+  document.getElementById("fa-season").value = "";
+  document.getElementById("fa-platform").value = "";
+  document.getElementById("fa-status").value = "en_cours";
+  document.getElementById("fa-episodes").value = "";
+  document.getElementById("fa-episodes-total").value = "";
+  document.getElementById("fa-seasons").value = "";
+  document.getElementById("fa-image").value = "";
+  document.getElementById("fa-notes").value = "";
+  animeForm.rating = 7;
+  animeForm.genres = [];
 }
 
 // ============================================
@@ -352,7 +515,7 @@ function renderCard(w, i) {
   var isManga = w.type === "manga";
   var progress = isManga
     ? (w.volumes_read || "?") + "/" + (w.volumes_vo || "?") + " vol."
-    : (w.episodes_watched || "?") + " ep.";
+    : (w.episodes_watched || "?") + "/" + (w.episodes_total || "?") + " ep.";
 
   var subtitle = "";
   if (isManga) {
@@ -499,6 +662,9 @@ function openAnimeModal(work) {
   if (work) {
     titleEl.textContent = "Modifier un anime アニメ";
     btnEl.textContent = "Sauvegarder";
+    document.getElementById("fa-step-search").style.display = "none";
+    document.getElementById("fa-form").style.display = "block";
+    document.getElementById("fa-preview").style.display = "none";
     document.getElementById("fa-title").value = work.title || "";
     document.getElementById("fa-studio").value = work.studio || "";
     document.getElementById("fa-year").value = work.year || "";
@@ -515,17 +681,9 @@ function openAnimeModal(work) {
   } else {
     titleEl.textContent = "Ajouter un anime アニメ";
     btnEl.textContent = "Ajouter";
-    document.getElementById("fa-title").value = "";
-    document.getElementById("fa-studio").value = "";
-    document.getElementById("fa-year").value = "";
-    document.getElementById("fa-season").value = "";
-    document.getElementById("fa-platform").value = "";
-    document.getElementById("fa-status").value = "en_cours";
-    document.getElementById("fa-episodes").value = "";
-    document.getElementById("fa-episodes-total").value = "";
-    document.getElementById("fa-seasons").value = "";
-    document.getElementById("fa-image").value = "";
-    document.getElementById("fa-notes").value = "";
+    document.getElementById("fa-step-search").style.display = "block";
+    document.getElementById("fa-form").style.display = "none";
+    resetAnimeSearch();
     animeForm.rating = 7;
     animeForm.genres = [];
   }
