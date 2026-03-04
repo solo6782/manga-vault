@@ -1721,6 +1721,36 @@ async function recSendDebate(idx) {
   }
 }
 
+// ============================================
+// BACKFILL title_english
+// ============================================
+
+async function backfillTitleEnglish() {
+  var toBackfill = works.filter(function(w) { return w.mal_id && !w.title_english; });
+  if (toBackfill.length === 0) { alert("Toutes les oeuvres ont deja un titre anglais !"); return; }
+  var btn = document.getElementById("btn-backfill");
+  if (btn) { btn.disabled = true; btn.textContent = "Mise a jour... 0/" + toBackfill.length; }
+  var updated = 0, errors = 0;
+  for (var i = 0; i < toBackfill.length; i++) {
+    var w = toBackfill[i];
+    try {
+      var endpoint = w.type === "manga" ? "manga" : "anime";
+      var resp = await fetch("https://api.jikan.moe/v4/" + endpoint + "/" + w.mal_id);
+      var data = await resp.json();
+      if (data.data && data.data.title_english && data.data.title_english !== data.data.title) {
+        var en = data.data.title_english;
+        var result = await sb.from("mv_works").update({ title_english: en }).eq("id", w.id);
+        if (!result.error) { w.title_english = en; updated++; }
+      }
+      if (btn) btn.textContent = "Mise a jour... " + (i + 1) + "/" + toBackfill.length;
+      if (i < toBackfill.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
+    } catch(e) { errors++; console.log("Backfill error:", e); }
+  }
+  renderWorks();
+  if (btn) { btn.disabled = false; btn.textContent = "Traductions ANG"; }
+  alert("Termine ! " + updated + " oeuvres mises a jour" + (errors ? ", " + errors + " erreurs." : "."));
+}
+
 // CHANGELOG
 // ============================================
 
