@@ -283,7 +283,7 @@
 
   <!-- Footer version -->
   <footer class="app-footer" onclick="openChangelog()">
-    <span class="version-btn">v1.2.4</span>
+    <span class="version-btn">v1.4.1</span>
   </footer>
 
   <!-- MODAL CHANGELOG -->
@@ -294,6 +294,66 @@
         <button class="universe-close-btn" onclick="closeChangelog()">✕</button>
       </div>
       <div class="changelog-content">
+
+        <div class="changelog-version">
+          <div class="changelog-version-header">
+            <span class="changelog-tag">v1.4.1</span>
+            <span class="changelog-date">Mars 2026</span>
+          </div>
+          <div class="changelog-section">
+            <h4>Correctifs</h4>
+            <ul>
+              <li>Logo SVG inliné dans le HTML — le texte "Otaku" s'affiche maintenant correctement en blanc (dark) et sombre (light) sur toutes les pages</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="changelog-version">
+          <div class="changelog-version-header">
+            <span class="changelog-tag">v1.4.0</span>
+            <span class="changelog-date">Mars 2026</span>
+          </div>
+          <div class="changelog-section">
+            <h4>Nouveautés</h4>
+            <ul>
+              <li>Renommage en <strong>OtakuAI</strong> — nouveau logo torii gate minimaliste avec dot violet</li>
+              <li>Mode clair / sombre — bouton 🌙/☀️ dans la navbar, préférence mémorisée entre les sessions</li>
+              <li>Système de variables CSS complet — toutes les couleurs sont thémables</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="changelog-version">
+          <div class="changelog-version-header">
+            <span class="changelog-tag">v1.3.1</span>
+            <span class="changelog-date">Mars 2026</span>
+          </div>
+          <div class="changelog-section">
+            <h4>Sécurité</h4>
+            <ul>
+              <li>Endpoint IA bloqué sans token d'authentification — les appels directs sans session valide retournent 401</li>
+              <li>Messages d'erreur explicites : quota dépassé, session invalide</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="changelog-version">
+          <div class="changelog-version-header">
+            <span class="changelog-tag">v1.3.0</span>
+            <span class="changelog-date">Mars 2026</span>
+          </div>
+          <div class="changelog-section">
+            <h4>Nouveautés</h4>
+            <ul>
+              <li>Système de plans : Free (50 œuvres, 1 reco/semaine), Bêta (illimité, 5 recos/semaine), Admin</li>
+              <li>Quota IA affiché sous le bouton Recommandations — compteur avec code couleur vert/orange/rouge</li>
+              <li>Limite d'œuvres : message bloquant à l'ajout si quota atteint</li>
+              <li>Interface d'administration — gestion des plans par utilisateur, compteurs d'usage</li>
+              <li>Reconnaissance admin automatique par email</li>
+              <li>Reset hebdomadaire automatique des quotas IA</li>
+            </ul>
+          </div>
+        </div>
 
         <div class="changelog-version">
           <div class="changelog-version-header">
