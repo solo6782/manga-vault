@@ -958,15 +958,20 @@ function renderWorks() {
     return new Date(b.created_at) - new Date(a.created_at);
   });
 
-  // Group by universe_id: only show one card per universe
+  // Group by universe_id: show oldest work (first added = base work) as representative
   var seenUniverse = {};
   var displayList = [];
   filtered.forEach(function(w) {
     if (w.universe_id) {
       if (!seenUniverse[w.universe_id]) {
         seenUniverse[w.universe_id] = true;
-        var groupCount = works.filter(function(x) { return x.universe_id === w.universe_id; }).length;
-        displayList.push({ work: w, groupCount: groupCount });
+        var groupWorks = works.filter(function(x) { return x.universe_id === w.universe_id; });
+        var groupCount = groupWorks.length;
+        // Use the oldest (first added) as representative
+        var representative = groupWorks.reduce(function(oldest, x) {
+          return new Date(x.created_at) < new Date(oldest.created_at) ? x : oldest;
+        }, groupWorks[0]);
+        displayList.push({ work: representative, groupCount: groupCount });
       }
     } else {
       displayList.push({ work: w, groupCount: 0 });
@@ -1332,23 +1337,34 @@ function renderRecommendations(recommendations) {
 }
 
 async function loadRecMalData(recommendations) {
+  // Pre-fetch and cache full Jikan data so validation is instant (no Jikan calls at validate time)
   for (var i = 0; i < recommendations.length; i++) {
     try {
       var rec = recommendations[i];
+      var idx = i; // capture for closure
       var endpoint = recType === "manga" ? "manga" : "anime";
+      // Step 1: search
       var resp = await fetch("https://api.jikan.moe/v4/" + endpoint + "?q=" + encodeURIComponent(rec.title) + "&limit=1");
       var data = await resp.json();
       if (data.data && data.data.length > 0) {
         var item = data.data[0];
-        var linkEl = document.getElementById("rec-mal-link-" + i);
-        var scoreEl = document.getElementById("rec-mal-score-" + i);
+        // Update UI: MAL link + score
+        var linkEl = document.getElementById("rec-mal-link-" + idx);
+        var scoreEl = document.getElementById("rec-mal-score-" + idx);
         if (linkEl) {
           linkEl.href = "https://myanimelist.net/" + endpoint + "/" + item.mal_id;
           linkEl.style.display = "inline-flex";
-          // Store mal_id on the result for planify
-          if (recCurrentResults[i]) recCurrentResults[i]._malId = item.mal_id;
         }
         if (scoreEl && item.score) scoreEl.textContent = "★" + item.score;
+        // Step 2: fetch full details for caching
+        await new Promise(function(r) { setTimeout(r, 400); });
+        var detResp = await fetch("https://api.jikan.moe/v4/" + endpoint + "/" + item.mal_id + "/full");
+        var detData = await detResp.json();
+        if (detData.data && recCurrentResults[idx]) {
+          recCurrentResults[idx]._jikanFull = detData.data;
+          // Update score with full data if available
+          if (scoreEl && detData.data.score) scoreEl.textContent = "★" + detData.data.score;
+        }
       }
       if (i < recommendations.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
     } catch(e) { console.log("MAL lookup error:", e); }
@@ -1405,7 +1421,7 @@ async function recSavePasEnvie(idx) {
   if (btn) { btn.disabled = true; btn.textContent = "Sauvegarde..."; }
 
   try {
-    var jikanData = await recFetchJikan(rec);
+    var jikanData = rec._jikanFull || null;
     var payload = recBuildPayload(rec, jikanData, "ignore");
     payload.notes = reason || null;
     var result = await sb.from("mv_works").insert(payload).select().single();
@@ -1441,47 +1457,36 @@ async function recValidateSelection() {
   var btn = document.getElementById("rec-validate-btn");
   if (btn) { btn.disabled = true; btn.textContent = "Traitement..."; }
 
-  // 1. Process all "planifier" items silently
+  // 1. Process all "planifier" items — use pre-cached Jikan data, no API calls
   var planIndices = recCardStates.map(function(s, i) { return s === "planifier" ? i : -1; }).filter(function(i) { return i >= 0; });
   for (var pi = 0; pi < planIndices.length; pi++) {
     var idx = planIndices[pi];
     try {
       var rec = recCurrentResults[idx];
-      var jikanData = await recFetchJikan(rec);
-      var payload = recBuildPayload(rec, jikanData, "planifie");
+      var payload = recBuildPayload(rec, rec._jikanFull || null, "planifie");
       var result = await sb.from("mv_works").insert(payload).select().single();
       if (result.error) throw new Error(result.error.message);
       works.unshift(result.data);
       recMarkCardDone(idx, "📋 Ajouté en Planifié");
       recCardStates[idx] = "done";
-      if (pi < planIndices.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
     } catch(err) {
       recMarkCardDone(idx, "❌ Erreur: " + err.message);
       recCardStates[idx] = "done";
     }
   }
-  renderStats();
-  renderWorks();
+  if (planIndices.length > 0) { renderStats(); renderWorks(); }
 
-  // 2. Build dejaVu queue with Jikan data
+  // 2. Build dejaVu queue — use pre-cached Jikan data, instant (no API calls)
   var dejaIndices = recCardStates.map(function(s, i) { return s === "dejaVu" ? i : -1; }).filter(function(i) { return i >= 0; });
   if (dejaIndices.length === 0) {
     updateRecValidateBtn();
+    if (btn) { btn.disabled = false; }
     return;
   }
 
-  // Fetch Jikan data for all dejaVu items
-  recDejaVuQueue = [];
-  for (var di = 0; di < dejaIndices.length; di++) {
-    var idx = dejaIndices[di];
-    var rec = recCurrentResults[idx];
-    var jikanData = null;
-    try {
-      jikanData = await recFetchJikan(rec);
-      if (di < dejaIndices.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
-    } catch(e) { console.log("Jikan fetch error:", e); }
-    recDejaVuQueue.push({ rec: rec, jikanData: jikanData, cardIdx: idx });
-  }
+  recDejaVuQueue = dejaIndices.map(function(idx) {
+    return { rec: recCurrentResults[idx], jikanData: recCurrentResults[idx]._jikanFull || null, cardIdx: idx };
+  });
   recDejaVuQueueIdx = 0;
   recProcessNextDejaVu();
 }
@@ -1691,7 +1696,8 @@ async function recSendDebate(idx) {
         if (!seqEl) card.querySelector(".rec-result-header").insertAdjacentHTML("afterbegin", '<span class="rec-sequel-badge">🔗 Suite de ' + newRec.sequel_of + '</span>');
         else seqEl.textContent = "🔗 Suite de " + newRec.sequel_of;
       } else if (seqEl) seqEl.remove();
-      // Reload MAL
+      // Reload MAL (resets _jikanFull on new rec)
+      newRec._jikanFull = null; // will be re-fetched by loadRecMalData
       loadRecMalData([newRec]);
     } else {
       recDebateHistory[idx].push({ role: "assistant", content: data.text });
