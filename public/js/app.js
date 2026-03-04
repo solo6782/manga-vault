@@ -1393,6 +1393,8 @@ async function fetchRecommendations() {
       body: JSON.stringify({ collection: collection, ignored: ignored, planned: planned, type: recType, genres: recGenres, messages: [], authToken: authToken }),
     });
     var data = await resp.json();
+    if (data.error === "unauthorized") throw new Error("Session invalide, reconnecte-toi.");
+    if (data.error === "quota_exceeded") throw new Error("Tu as atteint ton quota hebdomadaire de recommandations.");
     if (data.error) throw new Error(data.error);
     var text = data.text.trim().replace(/```json|```/g, "").trim();
     var recommendations = JSON.parse(text);
@@ -1802,6 +1804,8 @@ async function recSendDebate(idx) {
       body: JSON.stringify({ collection: collection, ignored: ignored, planned: planned, type: recType, genres: recGenres, messages: recDebateHistory[idx] }),
     });
     var data = await resp.json();
+    if (data.error === "unauthorized") throw new Error("Session invalide, reconnecte-toi.");
+    if (data.error === "quota_exceeded") throw new Error("Tu as atteint ton quota hebdomadaire de recommandations.");
     if (data.error) throw new Error(data.error);
     var text = data.text.trim().replace(/```json|```/g, "").trim();
     var newRecs;

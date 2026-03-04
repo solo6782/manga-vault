@@ -8,7 +8,7 @@ const SUPABASE_URL = "https://denhmucpuksiedfynokm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlbmhtdWNwdWtzaWVkZnlub2ttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzNzkxNTYsImV4cCI6MjA4Nzk1NTE1Nn0.f25F82Z5nlds83KgI-W8fDsVQozvfALt_JUVT3MLkVU";
 
 async function checkAndIncrementQuota(authToken) {
-  if (!authToken) return { allowed: true, profile: null };
+  if (!authToken) return { allowed: false, reason: 'no_token' };
 
   // Fetch user profile
   const resp = await fetch(SUPABASE_URL + "/rest/v1/mv_profiles?select=*", {
@@ -70,8 +70,11 @@ export default {
         // Server-side quota check
         const quotaCheck = await checkAndIncrementQuota(authToken);
         if (!quotaCheck.allowed) {
-          return new Response(JSON.stringify({ error: "quota_exceeded", used: quotaCheck.used, limit: quotaCheck.limit }), {
-            status: 429,
+          var errPayload = quotaCheck.reason === "no_token"
+            ? { error: "unauthorized" }
+            : { error: "quota_exceeded", used: quotaCheck.used, limit: quotaCheck.limit };
+          return new Response(JSON.stringify(errPayload), {
+            status: quotaCheck.reason === "no_token" ? 401 : 429,
             headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
           });
         }
