@@ -990,10 +990,14 @@ html[data-theme="light"] .changelog-tag { background: rgba(168,85,247,0.1); colo
   height: 34px; width: auto;
   color: #ffffff;
   transition: color 0.2s;
+  /* force currentColor to white in dark mode */
 }
 html[data-theme="light"] .navbar-logo {
   color: #0f0d0b;
 }
+/* SVG text fill="currentColor" needs explicit color on the element */
+.navbar-brand { color: #ffffff; }
+html[data-theme="light"] .navbar-brand { color: #0f0d0b; }
 
 .login-logo-img {
   height: 44px; width: auto; margin-bottom: 8px;
