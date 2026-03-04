@@ -23,6 +23,7 @@
         </button>
         <div id="user-dropdown" class="navbar-dropdown" style="display:none">
           <div class="navbar-dropdown-email" id="user-email"></div>
+          <button id="btn-admin" class="navbar-dropdown-btn admin-btn" onclick="openAdminModal()" style="display:none">👑 Administration</button>
           <button id="btn-backfill" class="navbar-dropdown-btn" onclick="backfillTitleEnglish()">Traductions ANG</button>
           <button class="navbar-dropdown-btn" onclick="logout()">Se déconnecter</button>
         </div>
@@ -33,6 +34,7 @@
         <h2>Ma collection</h2>
         <div class="add-buttons">
           <button class="btn-add btn-add-ai" onclick="openRecommendModal()"><span class="plus">✨</span> Recommandations IA</button>
+          <div id="quota-display"></div>
           <button class="btn-add btn-add-manga" onclick="openModal('manga')"><span class="plus">+</span> 漫画 Manga</button>
           <button class="btn-add btn-add-anime" onclick="openModal('anime')"><span class="plus">+</span> アニメ Anime</button>
         </div>
@@ -417,6 +419,36 @@
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Admin -->
+  <div class="modal-overlay" id="modal-admin" style="display:none">
+    <div class="modal-box modal-admin">
+      <div class="modal-header-bar" style="background:linear-gradient(135deg,#7c3aed,#4f46e5)">
+        <h2>👑 Administration</h2>
+      </div>
+      <div class="admin-header">
+        <span id="admin-user-count" class="admin-user-count"></span>
+        <button class="admin-refresh-btn" onclick="loadAdminUsers()">🔄 Actualiser</button>
+      </div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th class="admin-th">Email</th>
+              <th class="admin-th">Plan</th>
+              <th class="admin-th admin-center">Œuvres</th>
+              <th class="admin-th admin-center">IA cette semaine</th>
+              <th class="admin-th admin-center">Inscrit le</th>
+            </tr>
+          </thead>
+          <tbody id="admin-table-body"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions" style="padding:16px 28px">
+        <button class="btn-cancel" onclick="closeAdminModal()">Fermer</button>
       </div>
     </div>
   </div>

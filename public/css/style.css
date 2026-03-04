@@ -779,3 +779,51 @@ select.modal-input { cursor: pointer; }
   padding: 20px 28px 24px; display: flex; gap: 12px;
   justify-content: center; flex-wrap: wrap; z-index: 10;
 }
+
+/* ---- Quota display ---- */
+#quota-display { margin-top: 4px; min-height: 20px; }
+.quota-badge {
+  display: inline-block; font-size: 11px; font-weight: 700;
+  padding: 3px 10px; border-radius: 20px; letter-spacing: 0.03em;
+}
+.quota-ok    { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+.quota-low   { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+.quota-empty { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+.quota-admin { background: rgba(124,58,237,0.15); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
+
+/* ---- Admin button ---- */
+.admin-btn { color: #a78bfa !important; font-weight: 700; }
+
+/* ---- Admin modal ---- */
+.modal-admin { max-width: 820px; width: 95vw; max-height: 80vh; display: flex; flex-direction: column; }
+.admin-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 28px 8px; border-bottom: 1px solid var(--border);
+}
+.admin-user-count { font-size: 13px; color: var(--text-secondary); font-weight: 600; }
+.admin-refresh-btn {
+  font-size: 12px; background: none; border: 1px solid var(--border);
+  color: var(--text-secondary); padding: 5px 12px; border-radius: 6px; cursor: pointer;
+  transition: all 0.15s;
+}
+.admin-refresh-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.admin-table-wrap { overflow-y: auto; flex: 1; padding: 0 4px; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.admin-th {
+  padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 700;
+  color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border); position: sticky; top: 0;
+  background: var(--surface);
+}
+.admin-th.admin-center { text-align: center; }
+.admin-td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; transition: background 0.3s; }
+.admin-td.admin-center { text-align: center; color: var(--text-secondary); font-size: 12px; }
+.admin-td.admin-date { font-size: 11px; color: var(--text-secondary); }
+.admin-email { font-size: 12px; color: #e2e8f0; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-plan-select {
+  background: var(--surface-hover); border: 1px solid var(--border);
+  color: #e2e8f0; padding: 5px 10px; border-radius: 6px; font-size: 12px;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.admin-plan-select:focus { outline: none; border-color: #7c3aed; }
+.admin-plan-select:disabled { opacity: 0.5; }

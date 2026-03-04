@@ -10,12 +10,20 @@ var PLATFORM_LABELS = { crunchyroll: "Crunchyroll", netflix: "Netflix", adn: "AD
 var RELATION_LABELS = { Sequel: "Suite", Prequel: "Préquel", "Alternative setting": "Univers alternatif", "Alternative version": "Version alternative", "Side story": "Histoire parallèle", Summary: "Résumé", "Spin-off": "Spin-off", Other: "Autre", Character: "Personnage", "Full story": "Histoire complète", "Parent story": "Histoire principale" };
 
 var currentUser = null;
+var currentProfile = null;
 var works = [];
 var editingId = null;
 var filterType = "all";
 var mangaForm = { rating: 7, genres: [], mal_id: null, mal_score: null, universe_id: null };
 var animeForm = { rating: 7, genres: [], mal_id: null, mal_score: null, universe_id: null };
 var searchTimeout = null;
+
+var ADMIN_EMAIL = "solo6782@gmail.com";
+var PLANS = {
+  free:  { label: "Free",  works_limit: 50,     ai_calls_limit: 1 },
+  beta:  { label: "Bêta",  works_limit: 999999,  ai_calls_limit: 5 },
+  admin: { label: "Admin", works_limit: 999999,  ai_calls_limit: 999999 }
+};
 
 // ============================================
 // AUTH
@@ -27,10 +35,10 @@ async function initApp() {
   if (!session) { window.location.href = "login.html"; return; }
   currentUser = session.user;
   renderUserInfo();
+  await loadProfile();
   await loadWorks();
   document.getElementById("loading").style.display = "none";
   document.getElementById("app").style.display = "block";
-  // Auto-update MAL scores in background
   setTimeout(updateMalScores, 2000);
 }
 
@@ -54,6 +62,93 @@ document.addEventListener("click", function(e) {
 });
 
 async function logout() { await sb.auth.signOut(); window.location.href = "index.html"; }
+
+
+// ============================================
+// PLANS & QUOTA
+// ============================================
+
+async function loadProfile() {
+  var result = await sb.from("mv_profiles").select("*").eq("id", currentUser.id).single();
+
+  if (result.data) {
+    currentProfile = result.data;
+    // Auto-élévation admin par email
+    if (currentUser.email === ADMIN_EMAIL && currentProfile.plan !== "admin") {
+      await sb.from("mv_profiles").update({ plan: "admin", works_limit: 999999, ai_calls_limit: 999999 }).eq("id", currentUser.id);
+      currentProfile.plan = "admin"; currentProfile.works_limit = 999999; currentProfile.ai_calls_limit = 999999;
+    }
+  } else {
+    // Création du profil si inexistant
+    var isAdmin = currentUser.email === ADMIN_EMAIL;
+    var newProfile = {
+      id: currentUser.id, email: currentUser.email,
+      plan: isAdmin ? "admin" : "free",
+      works_limit: isAdmin ? 999999 : 50,
+      ai_calls_limit: isAdmin ? 999999 : 1,
+      ai_calls_used: 0, ai_calls_reset_at: new Date().toISOString()
+    };
+    var ins = await sb.from("mv_profiles").insert(newProfile).select().single();
+    if (!ins.error) currentProfile = ins.data;
+  }
+
+  // Reset hebdomadaire
+  if (currentProfile) {
+    var resetAt = new Date(currentProfile.ai_calls_reset_at);
+    var daysDiff = (Date.now() - resetAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysDiff >= 7) {
+      var now = new Date().toISOString();
+      await sb.from("mv_profiles").update({ ai_calls_used: 0, ai_calls_reset_at: now }).eq("id", currentUser.id);
+      currentProfile.ai_calls_used = 0; currentProfile.ai_calls_reset_at = now;
+    }
+  }
+
+  renderQuota();
+  renderAdminBtn();
+}
+
+function renderQuota() {
+  var el = document.getElementById("quota-display");
+  if (!el || !currentProfile) return;
+  var plan = currentProfile.plan;
+  var used = currentProfile.ai_calls_used || 0;
+  var limit = currentProfile.ai_calls_limit;
+
+  if (plan === "admin") {
+    el.innerHTML = '<span class="quota-badge quota-admin">∞ Admin</span>';
+  } else {
+    var remaining = Math.max(0, limit - used);
+    var cls = remaining === 0 ? "quota-badge quota-empty" : remaining <= 1 ? "quota-badge quota-low" : "quota-badge quota-ok";
+    el.innerHTML = '<span class="' + cls + '">' + remaining + '/' + limit + ' reco cette semaine</span>';
+  }
+}
+
+function renderAdminBtn() {
+  var btn = document.getElementById("btn-admin");
+  if (!btn || !currentProfile) return;
+  btn.style.display = currentProfile.plan === "admin" ? "block" : "none";
+}
+
+function checkWorksLimit() {
+  if (!currentProfile) return true;
+  if (currentProfile.plan === "admin" || currentProfile.plan === "beta") return true;
+  var userWorksCount = works.filter(function(w) { return w.user_id === currentUser.id; }).length;
+  if (userWorksCount >= currentProfile.works_limit) {
+    alert("🔒 Limite atteinte (" + currentProfile.works_limit + " œuvres max en plan " + (PLANS[currentProfile.plan] ? PLANS[currentProfile.plan].label : currentProfile.plan) + ").\nContacte-nous pour passer en plan Bêta !");
+    return false;
+  }
+  return true;
+}
+
+function checkAiQuota() {
+  if (!currentProfile) return true;
+  if (currentProfile.plan === "admin") return true;
+  if (currentProfile.ai_calls_used >= currentProfile.ai_calls_limit) {
+    alert("🔒 Tu as utilisé tes " + currentProfile.ai_calls_limit + " recommandation(s) de la semaine.\nReviens dans quelques jours ou contacte-nous pour upgrader !");
+    return false;
+  }
+  return true;
+}
 
 // ============================================
 // DATA
@@ -900,6 +995,12 @@ async function wizSave() {
     };
   }
 
+  if (!checkWorksLimit()) {
+    document.getElementById("wiz-step-saving").style.display = "none";
+    document.getElementById("wiz-step-status").style.display = "block";
+    return;
+  }
+
   var result = await sb.from("mv_works").insert(payload).select().single();
   if (result.error) {
     console.error("Save error:", result.error);
@@ -1178,6 +1279,7 @@ async function saveWork(type) {
     error = result.error;
     if (!error && result.data) works = works.map(function(w) { return w.id === editingId ? result.data : w; });
   } else {
+    if (!checkWorksLimit()) { btn.disabled = false; btn.textContent = "Ajouter"; return; }
     payload.user_id = currentUser.id;
     var result = await sb.from("mv_works").insert(payload).select().single();
     error = result.error;
@@ -1262,6 +1364,8 @@ function recToggleGenre(btn, genre) {
 }
 
 async function fetchRecommendations() {
+  if (!checkAiQuota()) return;
+
   document.getElementById("rec-step-genres").style.display = "none";
   document.getElementById("rec-step-results").style.display = "none";
   document.getElementById("rec-step-loading").style.display = "block";
@@ -1273,11 +1377,15 @@ async function fetchRecommendations() {
   var planned = works.filter(function(w) { return w.type === recType && w.status === "planifie"; })
     .map(function(w) { return { title: w.title }; });
 
+  // Get auth token for server-side quota check
+  var sessionResult = await sb.auth.getSession();
+  var authToken = sessionResult.data.session ? "Bearer " + sessionResult.data.session.access_token : null;
+
   try {
     var resp = await fetch("/api/ai-recommend", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ collection: collection, ignored: ignored, planned: planned, type: recType, genres: recGenres, messages: [] }),
+      body: JSON.stringify({ collection: collection, ignored: ignored, planned: planned, type: recType, genres: recGenres, messages: [], authToken: authToken }),
     });
     var data = await resp.json();
     if (data.error) throw new Error(data.error);
@@ -1287,6 +1395,12 @@ async function fetchRecommendations() {
     recDebateHistory = recommendations.map(function() { return []; });
     recCardStates = recommendations.map(function() { return "none"; });
     renderRecommendations(recommendations);
+    // Increment quota counter locally + in DB
+    if (currentProfile && currentProfile.plan !== "admin") {
+      currentProfile.ai_calls_used = (currentProfile.ai_calls_used || 0) + 1;
+      sb.from("mv_profiles").update({ ai_calls_used: currentProfile.ai_calls_used }).eq("id", currentUser.id);
+      renderQuota();
+    }
     // Load MAL data async after render
     loadRecMalData(recommendations);
   } catch (err) {
@@ -1719,6 +1833,77 @@ async function recSendDebate(idx) {
     var thinking = msgsEl.querySelector(".thinking");
     if (thinking) thinking.innerHTML = "Erreur: " + err.message;
   }
+}
+
+
+// ============================================
+// ADMIN
+// ============================================
+
+function openAdminModal() {
+  document.getElementById("modal-admin").style.display = "flex";
+  document.getElementById("admin-table-body").innerHTML = "<tr><td colspan='6' style='text-align:center;padding:24px;color:var(--text-secondary)'>Chargement...</td></tr>";
+  document.getElementById("user-dropdown").style.display = "none";
+  loadAdminUsers();
+}
+
+function closeAdminModal() {
+  document.getElementById("modal-admin").style.display = "none";
+}
+
+async function loadAdminUsers() {
+  var result = await sb.rpc("get_all_profiles");
+  if (result.error) {
+    document.getElementById("admin-table-body").innerHTML = "<tr><td colspan='6' style='color:#f87171;padding:16px'>Erreur: " + result.error.message + "</td></tr>";
+    return;
+  }
+  var users = result.data || [];
+  users.sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); });
+
+  var html = users.map(function(u) {
+    var planOptions = Object.keys(PLANS).map(function(p) {
+      return '<option value="' + p + '"' + (u.plan === p ? " selected" : "") + '>' + PLANS[p].label + '</option>';
+    }).join("");
+    var resetDate = new Date(u.ai_calls_reset_at);
+    var nextReset = new Date(resetDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+    var daysLeft = Math.max(0, Math.ceil((nextReset - Date.now()) / (1000 * 60 * 60 * 24)));
+    var aiInfo = u.plan === "admin" ? "∞" : (u.ai_calls_used || 0) + "/" + u.ai_calls_limit + " (reset J-" + daysLeft + ")";
+    return '<tr>' +
+      '<td class="admin-td admin-email">' + (u.email || "—") + '</td>' +
+      '<td class="admin-td">' +
+        '<select class="admin-plan-select" onchange="adminChangePlan('' + u.id + '', this)">' + planOptions + '</select>' +
+      '</td>' +
+      '<td class="admin-td admin-center">' + (u.works_count || 0) + ' / ' + (u.works_limit >= 999999 ? "∞" : u.works_limit) + '</td>' +
+      '<td class="admin-td admin-center">' + aiInfo + '</td>' +
+      '<td class="admin-td admin-center admin-date">' + new Date(u.created_at).toLocaleDateString("fr-FR") + '</td>' +
+    '</tr>';
+  }).join("");
+
+  document.getElementById("admin-table-body").innerHTML = html || "<tr><td colspan='5' style='text-align:center;padding:24px;color:var(--text-secondary)'>Aucun utilisateur</td></tr>";
+  document.getElementById("admin-user-count").textContent = users.length + " utilisateur" + (users.length > 1 ? "s" : "");
+}
+
+async function adminChangePlan(userId, selectEl) {
+  var newPlan = selectEl.value;
+  var plan = PLANS[newPlan];
+  if (!plan) return;
+  selectEl.disabled = true;
+  var result = await sb.rpc("admin_update_profile", {
+    target_id: userId,
+    new_plan: newPlan,
+    new_works_limit: plan.works_limit,
+    new_ai_limit: plan.ai_calls_limit
+  });
+  if (result.error) {
+    alert("Erreur: " + result.error.message);
+    selectEl.disabled = false;
+    return;
+  }
+  selectEl.disabled = false;
+  // Visual feedback
+  var row = selectEl.closest("tr");
+  row.style.background = "rgba(34,197,94,0.08)";
+  setTimeout(function() { row.style.background = ""; }, 1200);
 }
 
 // ============================================
