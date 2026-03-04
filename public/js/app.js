@@ -794,25 +794,7 @@ function buildCompleteStars() {
   document.getElementById("complete-rating-label").textContent = completeRating + "/10";
 }
 
-function closeComplete(confirmed) {
-  document.getElementById("modal-complete").style.display = "none";
-  if (confirmed) {
-    // Apply rating and notes to the edit form
-    var formObj = completeType === "manga" ? mangaForm : animeForm;
-    formObj.rating = completeRating;
-    var starsId = completeType === "manga" ? "fm-stars" : "fa-stars";
-    var labelId = completeType === "manga" ? "fm-rating-label" : "fa-rating-label";
-    var notesId = completeType === "manga" ? "fm-notes" : "fa-notes";
-    document.getElementById(labelId).textContent = completeRating + "/10";
-    document.getElementById(notesId).value = document.getElementById("complete-notes").value;
-    buildStars(starsId, formObj);
-  } else {
-    // Cancelled: revert status to previous
-    var statusEl = document.getElementById(completeType === "manga" ? "fm-status" : "fa-status");
-    var work = works.find(function(w) { return w.id === editingId; });
-    if (work) statusEl.value = work.status;
-  }
-}
+// closeComplete is defined below (rec-aware version)
 
 // ============================================
 // WIZARD (step-by-step add after Jikan select)
@@ -1871,7 +1853,7 @@ async function loadAdminUsers() {
     return '<tr>' +
       '<td class="admin-td admin-email">' + (u.email || "—") + '</td>' +
       '<td class="admin-td">' +
-        '<select class="admin-plan-select" onchange="adminChangePlan('' + u.id + '', this)">' + planOptions + '</select>' +
+        '<select class="admin-plan-select" onchange="adminChangePlan(\'' + u.id + '\', this)">' + planOptions + '</select>' +
       '</td>' +
       '<td class="admin-td admin-center">' + (u.works_count || 0) + ' / ' + (u.works_limit >= 999999 ? "∞" : u.works_limit) + '</td>' +
       '<td class="admin-td admin-center">' + aiInfo + '</td>' +
