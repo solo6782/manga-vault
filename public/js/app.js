@@ -35,6 +35,7 @@ async function initApp() {
   if (!session) { window.location.href = "login.html"; return; }
   currentUser = session.user;
   renderUserInfo();
+  updateThemeToggleIcon();
   await loadProfile();
   await loadWorks();
   document.getElementById("loading").style.display = "none";
@@ -63,6 +64,28 @@ document.addEventListener("click", function(e) {
 
 async function logout() { await sb.auth.signOut(); window.location.href = "index.html"; }
 
+
+
+// ============================================
+// THEME TOGGLE
+// ============================================
+
+function toggleTheme() {
+  var html = document.documentElement;
+  var current = html.getAttribute("data-theme") || "dark";
+  var next = current === "dark" ? "light" : "dark";
+  html.setAttribute("data-theme", next);
+  localStorage.setItem("theme", next);
+  updateThemeToggleIcon();
+}
+
+function updateThemeToggleIcon() {
+  var btn = document.getElementById("theme-toggle");
+  if (!btn) return;
+  var theme = document.documentElement.getAttribute("data-theme") || "dark";
+  btn.textContent = theme === "dark" ? "🌙" : "☀️";
+  btn.title = theme === "dark" ? "Passer en mode clair" : "Passer en mode sombre";
+}
 
 // ============================================
 // PLANS & QUOTA

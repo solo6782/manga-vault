@@ -1,10 +1,14 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ma collection — MangaVault</title>
+  <title>Ma collection — OtakuAI</title>
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    // Apply saved theme before paint to avoid flash
+    (function(){var t=localStorage.getItem("theme")||"dark";document.documentElement.setAttribute("data-theme",t);})();
+  </script>
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -15,6 +19,7 @@
         <h1>Manga<span>Vault</span></h1>
         <span class="tag">私のコレクション</span>
       </a>
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Changer le thème">🌙</button>
       <div class="navbar-user">
         <button class="navbar-user-btn" onclick="toggleMenu()">
           <div id="user-avatar"></div>
