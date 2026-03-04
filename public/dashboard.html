@@ -267,7 +267,7 @@
 
   <!-- Footer version -->
   <footer class="app-footer" onclick="openChangelog()">
-    <span class="version-btn">v1.2.0</span>
+    <span class="version-btn">v1.2.4</span>
   </footer>
 
   <!-- MODAL CHANGELOG -->
@@ -278,6 +278,62 @@
         <button class="universe-close-btn" onclick="closeChangelog()">✕</button>
       </div>
       <div class="changelog-content">
+
+        <div class="changelog-version">
+          <div class="changelog-version-header">
+            <span class="changelog-tag">v1.2.4</span>
+            <span class="changelog-date">Mars 2026</span>
+          </div>
+          <div class="changelog-section">
+            <h4>Correctifs</h4>
+            <ul>
+              <li>Ajout de la valeur <code>ignore</code> à l'enum <code>mv_work_status</code> — le statut "Pas envie" est maintenant pleinement fonctionnel</li>
+              <li>Backfill des titres anglais : bouton "Traductions ANG" dans le menu utilisateur pour remplir rétroactivement les œuvres existantes depuis Jikan</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="changelog-version">
+          <div class="changelog-version-header">
+            <span class="changelog-tag">v1.2.3</span>
+            <span class="changelog-date">Mars 2026</span>
+          </div>
+          <div class="changelog-section">
+            <h4>Nouveautés</h4>
+            <ul>
+              <li>Titre anglais affiché en italique sous le titre romaji sur les cartes de la collection</li>
+              <li>Bouton "Valider la sélection" sticky en bas de la modale IA — toujours visible sans scroller</li>
+              <li>Validation possible dès 1 seule proposition sélectionnée (plus besoin de décider pour les 3)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="changelog-version">
+          <div class="changelog-version-header">
+            <span class="changelog-tag">v1.2.2</span>
+            <span class="changelog-date">Mars 2026</span>
+          </div>
+          <div class="changelog-section">
+            <h4>Correctifs</h4>
+            <ul>
+              <li>Fix blocage sur "Traitement..." : la modale de notation (Déjà vu) était masquée derrière la modale IA (conflit z-index)</li>
+              <li>Carte représentative d'un univers = l'œuvre la plus ancienne (tome 1 / saison 1) au lieu de la plus récente</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="changelog-version">
+          <div class="changelog-version-header">
+            <span class="changelog-tag">v1.2.1</span>
+            <span class="changelog-date">Mars 2026</span>
+          </div>
+          <div class="changelog-section">
+            <h4>Correctifs</h4>
+            <ul>
+              <li>Données Jikan pré-chargées à l'affichage des recommandations — la validation ne fait plus d'appels réseau et ne se bloque plus</li>
+            </ul>
+          </div>
+        </div>
 
         <div class="changelog-version">
           <div class="changelog-version-header">

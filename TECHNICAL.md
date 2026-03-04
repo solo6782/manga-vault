@@ -20,9 +20,9 @@ manga-vault/
 │   │   └── style.css        # Styles globaux (dark mode, responsive)
 │   └── js/
 │       ├── config.js        # Configuration Supabase (URL, clé anon)
-│       └── app.js           # Logique applicative (~1200 lignes)
+│       └── app.js           # Logique applicative (~1700 lignes)
 ├── src/
-│   └── index.js             # Cloudflare Worker entry point
+│   └── index.js             # Cloudflare Worker entry point (+ /api/ai-recommend)
 ├── wrangler.jsonc            # Configuration Cloudflare Workers
 └── TECHNICAL.md              # Ce fichier
 ```
@@ -33,8 +33,9 @@ manga-vault/
 |-----------|-------------|
 | Frontend | Vanilla JavaScript, HTML5, CSS3 |
 | Backend / BDD | Supabase (PostgreSQL + Auth + RLS) |
-| Hosting | Cloudflare Workers (assets statiques) |
+| Hosting | Cloudflare Workers (assets statiques + proxy IA) |
 | API métadonnées | Jikan v4 (MyAnimeList non-officielle) |
+| API IA | Anthropic Claude (claude-sonnet-4-5) via Cloudflare Worker |
 | Déploiement | GitHub → Cloudflare (auto-deploy) |
 
 ---
@@ -51,6 +52,7 @@ Table unique stockant mangas et animes. Le champ `type` distingue les deux.
 | `user_id` | uuid (FK → auth.users) | Propriétaire |
 | `type` | text | `"manga"` ou `"anime"` |
 | `title` | text | Titre romaji (ex: "Kaguya-sama wa Kokurasetai") |
+| `title_english` | text | Titre anglais (ex: "Kaguya-sama: Love is War") |
 | `author` | text | Auteur (manga uniquement) |
 | `studio` | text | Studio d'animation (anime uniquement) |
 | `year` | int4 | Année de publication/diffusion |
@@ -58,7 +60,7 @@ Table unique stockant mangas et animes. Le champ `type` distingue les deux.
 | `platform` | text | Plateforme de streaming (anime) |
 | `format` | text | Format manga : `shonen`, `seinen`, `shojo`, `josei` |
 | `publication_status` | text | Statut de publication manga : `en_cours`, `termine`, `en_pause` |
-| `status` | text | Statut personnel : `en_cours`, `termine`, `planifie`, `en_pause`, `abandonne` |
+| `status` | mv_work_status (enum) | Statut personnel : `en_cours`, `termine`, `planifie`, `en_pause`, `abandonne`, `ignore` |
 | `rating` | int4 | Note personnelle 1-10 (null si pas terminé) |
 | `genres` | jsonb | Tableau de genres : `["Action", "Romance"]` |
 | `episodes_watched` | int4 | Épisodes vus (anime) |
@@ -75,6 +77,17 @@ Table unique stockant mangas et animes. Le champ `type` distingue les deux.
 | `universe_id` | text | Identifiant d'univers/franchise (format : `uni_{mal_id}`) |
 | `created_at` | timestamptz | Date de création |
 
+### Statuts (`mv_work_status` enum)
+
+| Valeur | Label UI | Description |
+|--------|----------|-------------|
+| `en_cours` | En cours | En cours de lecture/visionnage |
+| `termine` | Terminé | Terminé, note obligatoire |
+| `planifie` | Planifié | À voir/lire plus tard |
+| `en_pause` | En pause | Mis en pause |
+| `abandonne` | Abandonné | Abandonné |
+| `ignore` | Pas envie | Pas intéressé — masqué du fil principal, utilisé par l'IA pour ne plus proposer |
+
 ### Vue `mv_user_stats`
 
 Vue PostgreSQL pour les statistiques du dashboard. Agrège les compteurs par user.
@@ -84,7 +97,7 @@ Vue PostgreSQL pour les statistiques du dashboard. Agrège les compteurs par use
 - Les utilisateurs ne voient et ne modifient que leurs propres œuvres
 - Politique basée sur `auth.uid() = user_id`
 
-### Migrations SQL importantes
+### Migrations SQL
 
 ```sql
 -- v3 : Ajout mal_id et mal_score
@@ -93,6 +106,12 @@ ALTER TABLE mv_works ADD COLUMN mal_score numeric;
 
 -- v6 : Ajout universe_id
 ALTER TABLE mv_works ADD COLUMN universe_id text;
+
+-- v1.2.0 : Ajout statut ignore à l'enum
+ALTER TYPE mv_work_status ADD VALUE 'ignore';
+
+-- v1.2.3 : Ajout titre anglais
+ALTER TABLE mv_works ADD COLUMN title_english text;
 ```
 
 ---
@@ -126,14 +145,38 @@ Base URL : `https://api.jikan.moe/v4`
 - Score MAL
 - Plateforme de streaming (anime)
 
-### Champs Jikan notables
+### Anthropic API (Claude)
 
-- `title` : titre romaji
-- `title_english` : titre anglais (affiché en sous-titre)
-- `title_japanese` : titre en kanji
-- `demographics[0].name` : détermine le format manga
-- `streaming` : liste des plateformes (Crunchyroll, Netflix, etc.)
-- `published.prop.from.year` : année de publication manga
+Appelée côté serveur via le Cloudflare Worker (`/api/ai-recommend`). La clé API est stockée en **secret Cloudflare** (`ANTHROPIC_API_KEY`), jamais exposée au frontend.
+
+**Modèle** : `claude-sonnet-4-5`
+
+**Endpoint Worker** : `POST /api/ai-recommend`
+
+**Payload envoyé** :
+```json
+{
+  "collection": [...],   // œuvres vues/en cours (titre, note, commentaire, genres, statut)
+  "ignored": [...],      // œuvres ignorées (titre, raison)
+  "planned": [...],      // œuvres planifiées (titre)
+  "type": "anime",       // "manga" ou "anime"
+  "genres": ["Romance"], // genres sélectionnés (vide = peu importe)
+  "messages": [...]      // historique de débat (vide = première demande)
+}
+```
+
+**Réponse** : tableau JSON de 3 recommandations :
+```json
+[
+  {
+    "title": "Titre romaji exact",
+    "explanation": "Pourquoi cette œuvre correspond...",
+    "genres": ["Comedy", "Romance"],
+    "year": 2019,
+    "sequel_of": null
+  }
+]
+```
 
 ---
 
@@ -144,8 +187,6 @@ Base URL : `https://api.jikan.moe/v4`
 Flux en deux étapes :
 1. **Recherche Jikan** : l'utilisateur tape un titre, résultats avec titre romaji + anglais en sous-titre
 2. **Wizard post-sélection** : au lieu du formulaire complet, questions étape par étape
-
-Logique du wizard :
 
 | Statut | Épisodes/Volumes | Note | Commentaire |
 |--------|-----------------|------|-------------|
@@ -176,22 +217,41 @@ Regroupement d'œuvres liées (suites, spin-offs, adaptations).
 
 **Affichage** :
 - Grille : les œuvres du même univers sont groupées (badge "X œuvres")
+- La carte représentative est l'œuvre la plus ancienne du groupe (tome 1 / saison 1)
 - Clic sur image → modale univers
 - "Ma collection" : œuvres possédées avec année, note, progression
 - "Explorer l'univers complet" : crawl récursif + œuvres non possédées en grisé
-- Liens MAL ↗ sur chaque entrée
-- Sous-titres anglais et année chargés progressivement
 
-### 4. Mise à jour des scores MAL
+### 4. Recommandations IA
 
-Au chargement du dashboard, `updateMalScores()` parcourt les œuvres ayant un `mal_id` et met à jour `mal_score` depuis Jikan (délai 400ms entre appels).
+Accessible via le bouton "✨ Recommandations IA" dans le dashboard.
+
+**Flux** :
+1. Choix du type (manga / anime)
+2. Choix des genres (extraits dynamiquement de la collection)
+3. L'IA analyse la collection + œuvres ignorées + planifiées et propose 3 œuvres
+4. Score MAL + lien chargés progressivement via Jikan
+5. Badge "🔗 Suite de [titre]" si la proposition est une suite directe
+
+**Actions par carte** :
+- **📋 Planifier** : sauvegarde en `planifie` avec métadonnées Jikan
+- **👁 Déjà vu** : sauvegarde en `termine` via la modale note/commentaire (séquentielle si plusieurs)
+- **🚫 Pas envie** : sauvegarde en `ignore` avec raison — l'IA en tient compte pour les prochaines propositions
+- **💬 Débattre** : mini-chat inline, l'IA peut reproposer une autre œuvre
+
+Le bouton "Valider la sélection" est sticky en bas de modale, visible dès 1 carte sélectionnée.
 
 ### 5. Filtres et tri
 
 - **Type** : Tout / Manga / Anime
-- **Statut** : Tout / En cours / Terminé / Planifié / En pause / Abandonné
+- **Statut** : Tout / En cours / Terminé / Planifié / En pause / Abandonné / Pas envie
+- Les œuvres "Pas envie" sont masquées dans le filtre "Tous statuts"
 - **Recherche** : filtre sur titre
 - **Tri** : Titre (A-Z) / Année / Note
+
+### 6. Mise à jour des scores MAL
+
+Au chargement du dashboard, `updateMalScores()` parcourt les œuvres ayant un `mal_id` et met à jour `mal_score` depuis Jikan (délai 400ms entre appels).
 
 ---
 
@@ -213,15 +273,11 @@ Au chargement du dashboard, `updateMalScores()` parcourt les œuvres ayant un `m
 
 ### Worker (`src/index.js`)
 
-Le worker sert uniquement les assets statiques. L'endpoint `/api/vf` (recherche de volumes français) était prévu mais Nautiljon s'est révélé hostile aux proxies.
+Deux rôles :
+1. **Proxy IA** : route `POST /api/ai-recommend` → appel Anthropic avec la clé secrète
+2. **Assets** : sert les fichiers statiques via `env.ASSETS.fetch(request)`
 
-```javascript
-export default {
-  async fetch(request, env) {
-    return env.ASSETS.fetch(request);
-  }
-};
-```
+**Secret requis** : `ANTHROPIC_API_KEY` à configurer dans Cloudflare Dashboard → Workers → Settings → Variables and Secrets.
 
 ### Déploiement
 
@@ -233,13 +289,21 @@ export default {
 
 ## Points d'attention
 
+### Enum `mv_work_status`
+
+Le champ `status` est un **type enum** PostgreSQL (pas un `text` libre). Toute nouvelle valeur de statut nécessite un `ALTER TYPE mv_work_status ADD VALUE '...'` avant d'être utilisable.
+
 ### Nautiljon
 
-Nautiljon bloque les proxies CORS et retourne des pages anti-bot. Le scraping côté client ou via proxy générique n'est pas viable. Les URLs Nautiljon sont basées sur le nom (pas d'ID), ex: `nautiljon.com/animes/one+piece.html`.
+Nautiljon bloque les proxies CORS et retourne des pages anti-bot. Le scraping côté client ou via proxy générique n'est pas viable. Le bouton "📖 Nautiljon ↗" ouvre simplement la page dans un nouvel onglet.
 
 ### Jikan rate limiting
 
-Jikan impose ~3 requêtes/seconde. Le code utilise un délai de 400ms entre les appels. Le crawl récursif d'univers peut générer de nombreux appels — un indicateur de progression est affiché.
+Jikan impose ~3 requêtes/seconde. Le code utilise un délai de 400ms entre les appels. Le crawl récursif d'univers et le chargement des données MAL des recommandations peuvent générer de nombreux appels — un indicateur de progression est affiché.
+
+### Données Jikan pré-chargées (recommandations IA)
+
+Lors de l'affichage des recommandations, `loadRecMalData()` pré-charge les données complètes Jikan (`/full`) et les cache dans `rec._jikanFull`. La validation (Planifier / Déjà vu) utilise ce cache — aucun appel réseau supplémentaire.
 
 ### Supabase views et migrations
 
@@ -252,11 +316,15 @@ Les vues PostgreSQL (`mv_user_stats`) dépendent des colonnes de la table. Si on
 
 Après déploiement, un hard refresh (Ctrl+Shift+R) est souvent nécessaire car Cloudflare cache agressivement les assets JS/CSS.
 
+### Backfill titre anglais
+
+Le bouton "Traductions ANG" dans le menu utilisateur lance `backfillTitleEnglish()` — parcourt toutes les œuvres avec `mal_id` mais sans `title_english` et les met à jour depuis Jikan.
+
 ---
 
 ## Versioning
 
-Le changelog est accessible via le bouton `v1.0.0` en bas du dashboard. Les versions suivent le semver :
+Le changelog est accessible via le bouton de version en bas du dashboard. Les versions suivent le semver :
 - **Major** : changement de structure BDD ou refonte UI
 - **Minor** : nouvelles fonctionnalités
 - **Patch** : corrections de bugs, polish
