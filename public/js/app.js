@@ -1184,6 +1184,317 @@ async function deleteWork(id) {
 }
 
 // ============================================
+// AI RECOMMENDATIONS
+// ============================================
+
+var recType = null;
+var recGenres = [];
+var recDebateHistory = []; // Per-card debate history, keyed by card index
+var recCurrentResults = [];
+
+function openRecommendModal() {
+  recType = null;
+  recGenres = [];
+  recCurrentResults = [];
+  document.getElementById("rec-step-type").style.display = "block";
+  document.getElementById("rec-step-genres").style.display = "none";
+  document.getElementById("rec-step-loading").style.display = "none";
+  document.getElementById("rec-step-results").style.display = "none";
+  document.getElementById("modal-recommend").style.display = "flex";
+}
+
+function closeRecommendModal() {
+  document.getElementById("modal-recommend").style.display = "none";
+}
+
+function recSetType(type) {
+  recType = type;
+  recGenres = [];
+  // Build genre tags from the collection dynamically
+  var allGenres = {};
+  works.filter(function(w) { return w.type === type; }).forEach(function(w) {
+    (w.genres || []).forEach(function(g) { allGenres[g] = true; });
+  });
+  var genreList = Object.keys(allGenres).sort();
+  if (genreList.length === 0) genreList = GENRES;
+
+  var container = document.getElementById("rec-genre-tags");
+  container.innerHTML = '<button class="rec-genre-tag active" id="rec-genre-any" onclick="recToggleAnyGenre()">Peu importe</button>' +
+    genreList.map(function(g) {
+      return '<button class="rec-genre-tag" onclick="recToggleGenre(this, \'' + g + '\')">' + g + '</button>';
+    }).join("");
+
+  document.getElementById("rec-step-type").style.display = "none";
+  document.getElementById("rec-step-genres").style.display = "block";
+}
+
+function recBackToType() {
+  document.getElementById("rec-step-genres").style.display = "none";
+  document.getElementById("rec-step-type").style.display = "block";
+}
+
+function recToggleAnyGenre() {
+  recGenres = [];
+  // Deselect all, select "Peu importe"
+  var tags = document.querySelectorAll(".rec-genre-tag");
+  for (var i = 0; i < tags.length; i++) tags[i].classList.remove("active");
+  document.getElementById("rec-genre-any").classList.add("active");
+}
+
+function recToggleGenre(btn, genre) {
+  // Deselect "Peu importe"
+  document.getElementById("rec-genre-any").classList.remove("active");
+  var idx = recGenres.indexOf(genre);
+  if (idx >= 0) {
+    recGenres.splice(idx, 1);
+    btn.classList.remove("active");
+  } else {
+    recGenres.push(genre);
+    btn.classList.add("active");
+  }
+  // If nothing selected, re-select "Peu importe"
+  if (recGenres.length === 0) document.getElementById("rec-genre-any").classList.add("active");
+}
+
+async function fetchRecommendations(debateCardIdx, debateMessages) {
+  document.getElementById("rec-step-genres").style.display = "none";
+  document.getElementById("rec-step-results").style.display = "none";
+  document.getElementById("rec-step-loading").style.display = "block";
+
+  // Build collection summary (only works of this type, relevant fields)
+  var collection = works.filter(function(w) { return w.type === recType; }).map(function(w) {
+    return { title: w.title, rating: w.rating, notes: w.notes, genres: w.genres, status: w.status };
+  });
+
+  var payload = {
+    collection: collection,
+    type: recType,
+    genres: recGenres,
+    messages: debateMessages || [],
+  };
+
+  try {
+    var resp = await fetch("/api/ai-recommend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    var data = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    // Parse JSON from Claude response
+    var text = data.text.trim().replace(/```json|```/g, "").trim();
+    var recommendations = JSON.parse(text);
+    recCurrentResults = recommendations;
+
+    // Reset debate history for new results
+    recDebateHistory = recommendations.map(function() { return []; });
+
+    renderRecommendations(recommendations);
+  } catch (err) {
+    document.getElementById("rec-step-loading").style.display = "none";
+    document.getElementById("rec-step-results").style.display = "block";
+    document.getElementById("rec-results-list").innerHTML = '<div class="rec-error">Erreur lors de la génération. Réessaie.<br><small>' + err.message + '</small></div>';
+  }
+}
+
+function renderRecommendations(recommendations) {
+  document.getElementById("rec-step-loading").style.display = "none";
+  document.getElementById("rec-step-results").style.display = "block";
+
+  var html = recommendations.map(function(rec, idx) {
+    var genreTags = (rec.genres || []).map(function(g) { return '<span class="rec-result-genre">' + g + '</span>'; }).join("");
+    return '<div class="rec-result-card" id="rec-card-' + idx + '">' +
+      '<div class="rec-result-header">' +
+        '<div class="rec-result-title">' + rec.title + (rec.year ? ' <span class="rec-result-year">(' + rec.year + ')</span>' : '') + '</div>' +
+        '<div class="rec-result-genres">' + genreTags + '</div>' +
+      '</div>' +
+      '<div class="rec-result-explanation">💡 ' + rec.explanation + '</div>' +
+      '<div class="rec-result-actions">' +
+        '<button class="btn-save rec-btn-plan" onclick="recPlanify(' + idx + ')">✅ Planifier</button>' +
+        '<button class="btn-cancel rec-btn-debate" onclick="recOpenDebate(' + idx + ')">💬 Débattre</button>' +
+      '</div>' +
+      '<div class="rec-debate-area" id="rec-debate-' + idx + '" style="display:none">' +
+        '<div class="rec-debate-messages" id="rec-debate-msgs-' + idx + '"></div>' +
+        '<div class="rec-debate-input-row">' +
+          '<input class="modal-input rec-debate-input" id="rec-debate-input-' + idx + '" placeholder="Dis-moi pourquoi tu n\'es pas convaincu..." onkeydown="if(event.key===\'Enter\')recSendDebate(' + idx + ')">' +
+          '<button class="btn-save rec-btn-ai" onclick="recSendDebate(' + idx + ')">Envoyer</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+
+  document.getElementById("rec-results-list").innerHTML = html;
+}
+
+function recOpenDebate(idx) {
+  var area = document.getElementById("rec-debate-" + idx);
+  var isOpen = area.style.display !== "none";
+  area.style.display = isOpen ? "none" : "block";
+  if (!isOpen) document.getElementById("rec-debate-input-" + idx).focus();
+}
+
+async function recSendDebate(idx) {
+  var input = document.getElementById("rec-debate-input-" + idx);
+  var msg = input.value.trim();
+  if (!msg) return;
+  input.value = "";
+
+  var rec = recCurrentResults[idx];
+
+  // Add user message to history for this card
+  recDebateHistory[idx].push({
+    role: "assistant",
+    content: JSON.stringify([rec]) // Claude's previous proposal
+  });
+  recDebateHistory[idx].push({
+    role: "user",
+    content: msg
+  });
+
+  // Show message in UI
+  var msgsEl = document.getElementById("rec-debate-msgs-" + idx);
+  msgsEl.innerHTML += '<div class="rec-debate-msg user">' + msg + '</div>';
+  msgsEl.innerHTML += '<div class="rec-debate-msg ai thinking">...</div>';
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+
+  // Call API with debate history
+  try {
+    var collection = works.filter(function(w) { return w.type === recType; }).map(function(w) {
+      return { title: w.title, rating: w.rating, notes: w.notes, genres: w.genres, status: w.status };
+    });
+
+    var resp = await fetch("/api/ai-recommend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        collection: collection,
+        type: recType,
+        genres: recGenres,
+        messages: recDebateHistory[idx],
+      }),
+    });
+    var data = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    var text = data.text.trim().replace(/```json|```/g, "").trim();
+
+    // Try to parse as JSON array (new proposals), otherwise treat as text reply
+    var newRecs;
+    try {
+      newRecs = JSON.parse(text);
+    } catch(e) { newRecs = null; }
+
+    // Remove the "thinking" bubble
+    var thinking = msgsEl.querySelector(".thinking");
+    if (thinking) thinking.remove();
+
+    if (newRecs && Array.isArray(newRecs) && newRecs.length > 0) {
+      // Update this card with the new proposal
+      recCurrentResults[idx] = newRecs[0];
+      recDebateHistory[idx].push({ role: "assistant", content: JSON.stringify(newRecs) });
+
+      msgsEl.innerHTML += '<div class="rec-debate-msg ai">Voici une nouvelle proposition ↓</div>';
+
+      // Re-render just this card (keep debate open)
+      var card = document.getElementById("rec-card-" + idx);
+      var newRec = newRecs[0];
+      var genreTags = (newRec.genres || []).map(function(g) { return '<span class="rec-result-genre">' + g + '</span>'; }).join("");
+      card.querySelector(".rec-result-title").innerHTML = newRec.title + (newRec.year ? ' <span class="rec-result-year">(' + newRec.year + ')</span>' : '');
+      card.querySelector(".rec-result-genres").innerHTML = genreTags;
+      card.querySelector(".rec-result-explanation").innerHTML = "💡 " + newRec.explanation;
+    } else {
+      // Plain text reply (discussion)
+      recDebateHistory[idx].push({ role: "assistant", content: data.text });
+      msgsEl.innerHTML += '<div class="rec-debate-msg ai">' + data.text + '</div>';
+    }
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+  } catch (err) {
+    var thinking = msgsEl.querySelector(".thinking");
+    if (thinking) thinking.innerHTML = "Erreur: " + err.message;
+  }
+}
+
+async function recPlanify(idx) {
+  var rec = recCurrentResults[idx];
+  var btn = document.querySelector("#rec-card-" + idx + " .rec-btn-plan");
+  btn.disabled = true;
+  btn.textContent = "Recherche...";
+
+  try {
+    // Search Jikan for the title
+    var endpoint = recType === "manga" ? "manga" : "anime";
+    var resp = await fetch("https://api.jikan.moe/v4/" + endpoint + "?q=" + encodeURIComponent(rec.title) + "&limit=1");
+    var data = await resp.json();
+
+    if (!data.data || data.data.length === 0) throw new Error("Œuvre non trouvée sur Jikan");
+
+    var item = data.data[0];
+    var malId = item.mal_id;
+
+    // Fetch full details
+    await new Promise(function(r) { setTimeout(r, 400); });
+    var detailResp = await fetch("https://api.jikan.moe/v4/" + endpoint + "/" + malId + "/full");
+    var detailData = await detailResp.json();
+    var d = detailData.data;
+
+    // Build payload
+    var payload = {
+      type: recType,
+      title: d.title || rec.title,
+      status: "planifie",
+      genres: mapJikanGenres(d),
+      image_url: (d.images && d.images.jpg && d.images.jpg.large_image_url) || null,
+      mal_id: malId,
+      mal_score: d.score || null,
+      user_id: currentUser.id,
+    };
+
+    if (recType === "manga") {
+      payload.author = (d.authors && d.authors.length > 0) ? reverseAuthorName(d.authors[0].name || "") : null;
+      payload.year = (d.published && d.published.prop && d.published.prop.from) ? d.published.prop.from.year || null : null;
+      payload.volumes_vo = d.volumes || null;
+      payload.volumes_read = 0;
+      payload.format = "";
+      if (d.demographics && d.demographics.length > 0) {
+        var demo = d.demographics[0].name.toLowerCase();
+        if (demo.indexOf("shonen") >= 0 || demo.indexOf("shounen") >= 0) payload.format = "shonen";
+        else if (demo.indexOf("seinen") >= 0) payload.format = "seinen";
+        else if (demo.indexOf("shojo") >= 0 || demo.indexOf("shoujo") >= 0) payload.format = "shojo";
+        else if (demo.indexOf("josei") >= 0) payload.format = "josei";
+      }
+      payload.publication_status = "en_cours";
+      if (d.status && d.status.toLowerCase().indexOf("finished") >= 0) payload.publication_status = "termine";
+    } else {
+      payload.studio = (d.studios && d.studios.length > 0) ? d.studios[0].name : null;
+      payload.year = d.year || null;
+      payload.season_name = mapJikanSeason(d.season);
+      payload.platform = mapJikanPlatform(d.streaming);
+      payload.episodes_total = d.episodes || null;
+      payload.episodes_watched = 0;
+    }
+
+    var result = await sb.from("mv_works").insert(payload).select().single();
+    if (result.error) throw new Error(result.error.message);
+
+    works.unshift(result.data);
+    renderStats();
+    renderWorks();
+
+    btn.textContent = "✓ Ajouté !";
+    btn.style.background = "linear-gradient(135deg, #22c55e, #16a34a)";
+    // Disable debate button too
+    var debateBtn = document.querySelector("#rec-card-" + idx + " .rec-btn-debate");
+    if (debateBtn) debateBtn.disabled = true;
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "✅ Planifier";
+    alert("Erreur: " + err.message);
+  }
+}
+
+// ============================================
 // CHANGELOG
 // ============================================
 

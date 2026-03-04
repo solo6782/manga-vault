@@ -31,6 +31,7 @@
       <div class="dashboard-header">
         <h2>Ma collection</h2>
         <div class="add-buttons">
+          <button class="btn-add btn-add-ai" onclick="openRecommendModal()"><span class="plus">✨</span> Recommandations IA</button>
           <button class="btn-add btn-add-manga" onclick="openModal('manga')"><span class="plus">+</span> 漫画 Manga</button>
           <button class="btn-add btn-add-anime" onclick="openModal('anime')"><span class="plus">+</span> アニメ Anime</button>
         </div>
@@ -209,9 +210,61 @@
     </div>
   </div>
 
+  <!-- MODAL RECOMMANDATIONS IA -->
+  <div id="modal-recommend" class="modal-overlay" style="display:none" onclick="closeRecommendModal()">
+    <div class="modal modal-recommend" onclick="event.stopPropagation()">
+      <div class="modal-header-bar recommend">
+        <h2>✨ Recommandations IA</h2>
+        <button class="universe-close" onclick="closeRecommendModal()">✕</button>
+      </div>
+
+      <!-- Step 1: Type -->
+      <div id="rec-step-type" class="rec-step">
+        <p class="rec-intro">Qu'est-ce que tu as envie de découvrir ?</p>
+        <div class="rec-type-grid">
+          <button class="rec-type-btn" onclick="recSetType('manga')">
+            <span class="rec-type-icon">漫画</span>
+            <span>Manga</span>
+          </button>
+          <button class="rec-type-btn" onclick="recSetType('anime')">
+            <span class="rec-type-icon">アニメ</span>
+            <span>Anime</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Genres -->
+      <div id="rec-step-genres" class="rec-step" style="display:none">
+        <p class="rec-intro">Quel(s) genre(s) tu cherches ?</p>
+        <div id="rec-genre-tags" class="rec-genre-tags"></div>
+        <div class="rec-genre-actions">
+          <button class="btn-cancel" onclick="recBackToType()">← Retour</button>
+          <button class="btn-save rec-btn-ai" onclick="fetchRecommendations()">✨ Trouver des œuvres</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Loading -->
+      <div id="rec-step-loading" class="rec-step" style="display:none">
+        <div class="rec-loading">
+          <div class="rec-loading-spinner"></div>
+          <p>L'IA analyse ta collection...</p>
+        </div>
+      </div>
+
+      <!-- Step 4: Results -->
+      <div id="rec-step-results" class="rec-step" style="display:none">
+        <div id="rec-results-list"></div>
+        <div class="rec-results-footer">
+          <button class="btn-cancel" onclick="fetchRecommendations()">🔄 Nouvelles propositions</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Footer version -->
   <footer class="app-footer" onclick="openChangelog()">
-    <span class="version-btn">v1.0.0</span>
+    <span class="version-btn">v1.1.0</span>
   </footer>
 
   <!-- MODAL CHANGELOG -->
@@ -222,6 +275,24 @@
         <button class="universe-close-btn" onclick="closeChangelog()">✕</button>
       </div>
       <div class="changelog-content">
+
+        <div class="changelog-version">
+          <div class="changelog-version-header">
+            <span class="changelog-tag">v1.1.0</span>
+            <span class="changelog-date">Mars 2026</span>
+          </div>
+          <div class="changelog-section">
+            <h4>Recommandations IA</h4>
+            <ul>
+              <li>Nouveau bouton "✨ Recommandations IA" dans le dashboard</li>
+              <li>Sélection du type (manga / anime) et du ou des genres souhaités</li>
+              <li>L'IA analyse ta collection (notes, commentaires, genres) pour proposer 3 œuvres personnalisées</li>
+              <li>Explication détaillée pour chaque recommandation</li>
+              <li>Ajout en un clic en "Planifié" avec récupération automatique des métadonnées Jikan</li>
+              <li>Mode "Débat" : discute avec l'IA pour affiner les propositions</li>
+            </ul>
+          </div>
+        </div>
 
         <div class="changelog-version">
           <div class="changelog-version-header">
