@@ -760,7 +760,22 @@ select.modal-input { cursor: pointer; }
   box-shadow: 0 4px 16px rgba(124,58,237,0.3);
   font-size: 14px; padding: 12px 24px;
 }
-.rec-results-footer { padding: 16px 28px 28px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+/* rec-results-footer now sticky — see override below */
 
 /* modal-complete must always appear above other modals */
 #modal-complete { z-index: 1100; }
+
+/* title_english on cards */
+.work-card-title-en {
+  font-size: 11px; color: #666; font-style: italic;
+  margin-top: 1px; margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Rec validate button — sticky at bottom of modal */
+.rec-results-footer {
+  position: sticky; bottom: 0;
+  background: linear-gradient(to top, var(--bg) 80%, transparent);
+  padding: 20px 28px 24px; display: flex; gap: 12px;
+  justify-content: center; flex-wrap: wrap; z-index: 10;
+}

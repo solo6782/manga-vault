@@ -158,6 +158,7 @@ async function selectManga(malId) {
     mangaForm.mal_id = malId;
     mangaForm.mal_score = m.score || null;
     mangaForm._jikan = m; // Keep full data for wizard
+    mangaForm.title_english = (m.title_english && m.title_english !== m.title) ? m.title_english : null;
 
     // Fill hidden form fields (for manual edit later)
     document.getElementById("fm-title").value = m.title || "";
@@ -216,7 +217,7 @@ function resetMangaSearch() {
   document.getElementById("fm-volumes").value = ""; document.getElementById("fm-volumes-vo").value = "";
   document.getElementById("fm-fr-volumes").value = ""; document.getElementById("fm-image").value = "";
   document.getElementById("fm-notes").value = ""; document.getElementById("fm-vf-status").style.display = "none";
-  mangaForm.rating = 7; mangaForm.genres = []; mangaForm.mal_id = null; mangaForm.mal_score = null; mangaForm.universe_id = null;
+  mangaForm.rating = 7; mangaForm.genres = []; mangaForm.mal_id = null; mangaForm.mal_score = null; mangaForm.universe_id = null; mangaForm.title_english = null;
 }
 
 function searchVF() {
@@ -272,6 +273,7 @@ async function selectAnime(malId) {
     animeForm.mal_id = malId;
     animeForm.mal_score = a.score || null;
     animeForm._jikan = a;
+    animeForm.title_english = (a.title_english && a.title_english !== a.title) ? a.title_english : null;
 
     // Fill hidden form fields
     document.getElementById("fa-title").value = a.title || "";
@@ -320,7 +322,7 @@ function resetAnimeSearch() {
   document.getElementById("fa-episodes").value = ""; document.getElementById("fa-episodes-total").value = "";
   document.getElementById("fa-seasons").value = ""; document.getElementById("fa-image").value = "";
   document.getElementById("fa-notes").value = "";
-  animeForm.rating = 7; animeForm.genres = []; animeForm.mal_id = null; animeForm.mal_score = null; animeForm.universe_id = null;
+  animeForm.rating = 7; animeForm.genres = []; animeForm.mal_id = null; animeForm.mal_score = null; animeForm.universe_id = null; animeForm.title_english = null;
 }
 
 // ============================================
@@ -859,6 +861,7 @@ async function wizSave() {
   if (wizardData.type === "manga") {
     payload = {
       title: document.getElementById("fm-title").value, type: "manga",
+      title_english: formObj.title_english || null,
       author: document.getElementById("fm-author").value || null,
       format: document.getElementById("fm-format").value || null,
       year: parseInt(document.getElementById("fm-year").value) || null,
@@ -878,6 +881,7 @@ async function wizSave() {
   } else {
     payload = {
       title: document.getElementById("fa-title").value, type: "anime",
+      title_english: formObj.title_english || null,
       studio: document.getElementById("fa-studio").value || null,
       year: parseInt(document.getElementById("fa-year").value) || null,
       season_name: document.getElementById("fa-season").value || null,
@@ -1014,7 +1018,7 @@ function renderCard(w, i, groupCount) {
       (hasUniverse ? '<div class="work-card-universe-hint">' + hintText + '</div>' : '') +
       '<div class="work-card-badges"><span class="badge badge-' + w.type + '">' + (isManga ? "漫画" : "アニメ") + '</span><span class="badge badge-status badge-' + w.status + '">' + (STATUS_LABELS[w.status] || w.status) + '</span>' + extraBadges + '</div>' +
       '<div class="work-card-actions"><button class="work-card-action-btn edit" onclick="event.stopPropagation();editWork(\'' + w.id + '\')">✎</button><button class="work-card-action-btn delete" onclick="event.stopPropagation();deleteWork(\'' + w.id + '\')">✕</button></div>' +
-      '<div class="work-card-info"><div class="work-card-meta">★ ' + (w.rating || "—") + '/10<span class="dim">· ' + progress + '</span>' + malScoreHtml + '</div><h3 class="work-card-title">' + w.title + '</h3>' + (subtitle ? '<div class="work-card-subtitle">' + subtitle + '</div>' : '') + (genres ? '<div class="work-card-genres">' + genres + '</div>' : '') + '</div></div></div>';
+      '<div class="work-card-info"><div class="work-card-meta">★ ' + (w.rating || "—") + '/10<span class="dim">· ' + progress + '</span>' + malScoreHtml + '</div><h3 class="work-card-title">' + w.title + '</h3>' + (w.title_english ? '<div class="work-card-title-en">' + w.title_english + '</div>' : '') + (subtitle ? '<div class="work-card-subtitle">' + subtitle + '</div>' : '') + (genres ? '<div class="work-card-genres">' + genres + '</div>' : '') + '</div></div></div>';
 }
 
 // ============================================
@@ -1068,7 +1072,7 @@ function openMangaModal(work) {
     document.getElementById("fm-notes").value = work.notes || "";
     document.getElementById("fm-vf-status").style.display = "none";
     mangaForm.rating = work.rating || 7; mangaForm.genres = (work.genres || []).slice();
-    mangaForm.mal_id = work.mal_id || null; mangaForm.mal_score = work.mal_score || null; mangaForm.universe_id = work.universe_id || null;
+    mangaForm.mal_id = work.mal_id || null; mangaForm.mal_score = work.mal_score || null; mangaForm.universe_id = work.universe_id || null; mangaForm.title_english = work.title_english || null;
   } else {
     titleEl.textContent = "Ajouter un manga 漫画"; btnEl.textContent = "Ajouter";
     document.getElementById("fm-step-search").style.display = "block";
@@ -1101,7 +1105,7 @@ function openAnimeModal(work) {
     document.getElementById("fa-image").value = work.image_url || "";
     document.getElementById("fa-notes").value = work.notes || "";
     animeForm.rating = work.rating || 7; animeForm.genres = (work.genres || []).slice();
-    animeForm.mal_id = work.mal_id || null; animeForm.mal_score = work.mal_score || null; animeForm.universe_id = work.universe_id || null;
+    animeForm.mal_id = work.mal_id || null; animeForm.mal_score = work.mal_score || null; animeForm.universe_id = work.universe_id || null; animeForm.title_english = work.title_english || null;
   } else {
     titleEl.textContent = "Ajouter un anime アニメ"; btnEl.textContent = "Ajouter";
     document.getElementById("fa-step-search").style.display = "block";
@@ -1132,6 +1136,7 @@ async function saveWork(type) {
     btn = document.getElementById("btn-save-manga");
     payload = {
       title: title, type: "manga",
+      title_english: mangaForm.title_english || null,
       author: document.getElementById("fm-author").value || null,
       format: document.getElementById("fm-format").value || null,
       year: parseInt(document.getElementById("fm-year").value) || null,
@@ -1151,6 +1156,7 @@ async function saveWork(type) {
     btn = document.getElementById("btn-save-anime");
     payload = {
       title: title, type: "anime",
+      title_english: animeForm.title_english || null,
       studio: document.getElementById("fa-studio").value || null,
       year: parseInt(document.getElementById("fa-year").value) || null,
       season_name: document.getElementById("fa-season").value || null,
@@ -1606,6 +1612,7 @@ function recBuildPayload(rec, d, status) {
   var payload = {
     type: recType,
     title: (d && d.title) || rec.title,
+    title_english: (d && d.title_english && d.title_english !== d.title) ? d.title_english : null,
     status: status,
     genres: d ? mapJikanGenres(d) : (rec.genres || []),
     image_url: (d && d.images && d.images.jpg && d.images.jpg.large_image_url) || null,
