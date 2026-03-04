@@ -1,22 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40" fill="none">
-  <!-- Torii gate icon -->
-  <g transform="translate(0,2)">
-    <!-- Curved top beam (kasagi) -->
-    <path d="M2 13 Q18 7 28 10" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-    <!-- Flat crossbeam (shimaki) with circuit dots -->
-    <line x1="1" y1="18" x2="29" y2="18" stroke="#a855f7" stroke-width="2" stroke-linecap="round"/>
-    <circle cx="8"  cy="18" r="1.8" fill="#a855f7"/>
-    <circle cx="15" cy="18" r="1.8" fill="#ef4444"/>
-    <circle cx="22" cy="18" r="1.8" fill="#a855f7"/>
-    <!-- Left pillar -->
-    <line x1="6"  y1="18" x2="6"  y2="34" stroke="#a855f7" stroke-width="2.2" stroke-linecap="round"/>
-    <!-- Right pillar -->
-    <line x1="24" y1="18" x2="24" y2="34" stroke="#a855f7" stroke-width="2.2" stroke-linecap="round"/>
-    <!-- Pillar base hints -->
-    <line x1="3"  y1="34" x2="9"  y2="34" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-    <line x1="21" y1="34" x2="27" y2="34" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 44" fill="none">
+  <!-- Torii gate — bold minimal -->
+  <path d="M3 13 C6 6, 16 4, 22 5 C28 6, 34 8, 37 10" stroke="#a855f7" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <line x1="1" y1="19" x2="39" y2="19" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Pulse dot — AI indicator -->
+  <circle cx="20" cy="19" r="4" fill="#a855f7" opacity="0.2"/>
+  <circle cx="20" cy="19" r="2" fill="#a855f7"/>
+  <!-- Pillars -->
+  <line x1="8"  y1="19" x2="8"  y2="40" stroke="#a855f7" stroke-width="3" stroke-linecap="round"/>
+  <line x1="32" y1="19" x2="32" y2="40" stroke="#a855f7" stroke-width="3" stroke-linecap="round"/>
   <!-- Wordmark -->
-  <text x="38" y="30" font-family="Outfit, sans-serif" font-weight="800" font-size="22" fill="currentColor" letter-spacing="-0.5">Otaku</text>
-  <text x="116" y="30" font-family="Outfit, sans-serif" font-weight="800" font-size="22" fill="#a855f7" letter-spacing="-0.5">AI</text>
+  <text x="49" y="32" font-family="Outfit, sans-serif" font-weight="900" font-size="24" fill="currentColor" letter-spacing="-0.5">Otaku</text>
+  <text x="143" y="32" font-family="Outfit, sans-serif" font-weight="900" font-size="24" fill="#a855f7" letter-spacing="-0.5">AI</text>
 </svg>
