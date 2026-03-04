@@ -3,7 +3,7 @@
 // ============================================
 
 var GENRES = ["Action", "Adventure", "Comedy", "Drama", "Fantasy", "Horror", "Mystery", "Romance", "Sci-Fi", "Slice of Life", "Sports", "Thriller"];
-var STATUS_LABELS = { en_cours: "En cours", termine: "Terminé", en_pause: "En pause", abandonne: "Abandonné", planifie: "Planifié" };
+var STATUS_LABELS = { en_cours: "En cours", termine: "Terminé", en_pause: "En pause", abandonne: "Abandonné", planifie: "Planifié", ignore: "Pas envie" };
 var FORMAT_LABELS = { shonen: "Shōnen", seinen: "Seinen", shojo: "Shōjo", josei: "Josei" };
 var SEASON_LABELS = { hiver: "Hiver", printemps: "Printemps", ete: "Été", automne: "Automne" };
 var PLATFORM_LABELS = { crunchyroll: "Crunchyroll", netflix: "Netflix", adn: "ADN", disney: "Disney+", prime: "Prime Video", hidive: "HIDIVE", autre: "Autre" };
@@ -950,7 +950,7 @@ function renderWorks() {
   var statusFilter = document.getElementById("status-filter").value;
   var sortBy = document.getElementById("sort-by").value;
   var filtered = works.filter(function(w) {
-    return (filterType === "all" || w.type === filterType) && (statusFilter === "all" || w.status === statusFilter) && w.title.toLowerCase().indexOf(search) >= 0;
+    return (filterType === "all" || w.type === filterType) && (statusFilter === "all" ? w.status !== "ignore" : w.status === statusFilter) && w.title.toLowerCase().indexOf(search) >= 0;
   });
   filtered.sort(function(a, b) {
     if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
@@ -1189,13 +1189,18 @@ async function deleteWork(id) {
 
 var recType = null;
 var recGenres = [];
-var recDebateHistory = []; // Per-card debate history, keyed by card index
+var recDebateHistory = [];
 var recCurrentResults = [];
+var recCardStates = []; // "none" | "planifier" | "dejaVu"
+var recDejaVuQueue = [];  // [{rec, jikanData}, ...]
+var recDejaVuQueueIdx = 0;
+var recCompleteMode = false; // true when modal-complete is used for rec flow
 
 function openRecommendModal() {
   recType = null;
   recGenres = [];
   recCurrentResults = [];
+  recCardStates = [];
   document.getElementById("rec-step-type").style.display = "block";
   document.getElementById("rec-step-genres").style.display = "none";
   document.getElementById("rec-step-loading").style.display = "none";
@@ -1210,20 +1215,17 @@ function closeRecommendModal() {
 function recSetType(type) {
   recType = type;
   recGenres = [];
-  // Build genre tags from the collection dynamically
   var allGenres = {};
   works.filter(function(w) { return w.type === type; }).forEach(function(w) {
     (w.genres || []).forEach(function(g) { allGenres[g] = true; });
   });
   var genreList = Object.keys(allGenres).sort();
   if (genreList.length === 0) genreList = GENRES;
-
   var container = document.getElementById("rec-genre-tags");
   container.innerHTML = '<button class="rec-genre-tag active" id="rec-genre-any" onclick="recToggleAnyGenre()">Peu importe</button>' +
     genreList.map(function(g) {
-      return '<button class="rec-genre-tag" onclick="recToggleGenre(this, \'' + g + '\')">' + g + '</button>';
+      return '<button class="rec-genre-tag" onclick="recToggleGenre(this,\'' + g + '\')">' + g + '</button>';
     }).join("");
-
   document.getElementById("rec-step-type").style.display = "none";
   document.getElementById("rec-step-genres").style.display = "block";
 }
@@ -1235,66 +1237,51 @@ function recBackToType() {
 
 function recToggleAnyGenre() {
   recGenres = [];
-  // Deselect all, select "Peu importe"
   var tags = document.querySelectorAll(".rec-genre-tag");
   for (var i = 0; i < tags.length; i++) tags[i].classList.remove("active");
   document.getElementById("rec-genre-any").classList.add("active");
 }
 
 function recToggleGenre(btn, genre) {
-  // Deselect "Peu importe"
   document.getElementById("rec-genre-any").classList.remove("active");
   var idx = recGenres.indexOf(genre);
-  if (idx >= 0) {
-    recGenres.splice(idx, 1);
-    btn.classList.remove("active");
-  } else {
-    recGenres.push(genre);
-    btn.classList.add("active");
-  }
-  // If nothing selected, re-select "Peu importe"
+  if (idx >= 0) { recGenres.splice(idx, 1); btn.classList.remove("active"); }
+  else { recGenres.push(genre); btn.classList.add("active"); }
   if (recGenres.length === 0) document.getElementById("rec-genre-any").classList.add("active");
 }
 
-async function fetchRecommendations(debateCardIdx, debateMessages) {
+async function fetchRecommendations() {
   document.getElementById("rec-step-genres").style.display = "none";
   document.getElementById("rec-step-results").style.display = "none";
   document.getElementById("rec-step-loading").style.display = "block";
 
-  // Build collection summary (only works of this type, relevant fields)
-  var collection = works.filter(function(w) { return w.type === recType; }).map(function(w) {
-    return { title: w.title, rating: w.rating, notes: w.notes, genres: w.genres, status: w.status };
-  });
-
-  var payload = {
-    collection: collection,
-    type: recType,
-    genres: recGenres,
-    messages: debateMessages || [],
-  };
+  var collection = works.filter(function(w) { return w.type === recType && w.status !== "ignore" && w.status !== "planifie"; })
+    .map(function(w) { return { title: w.title, rating: w.rating, notes: w.notes, genres: w.genres, status: w.status }; });
+  var ignored = works.filter(function(w) { return w.type === recType && w.status === "ignore"; })
+    .map(function(w) { return { title: w.title, notes: w.notes }; });
+  var planned = works.filter(function(w) { return w.type === recType && w.status === "planifie"; })
+    .map(function(w) { return { title: w.title }; });
 
   try {
     var resp = await fetch("/api/ai-recommend", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ collection: collection, ignored: ignored, planned: planned, type: recType, genres: recGenres, messages: [] }),
     });
     var data = await resp.json();
     if (data.error) throw new Error(data.error);
-
-    // Parse JSON from Claude response
     var text = data.text.trim().replace(/```json|```/g, "").trim();
     var recommendations = JSON.parse(text);
     recCurrentResults = recommendations;
-
-    // Reset debate history for new results
     recDebateHistory = recommendations.map(function() { return []; });
-
+    recCardStates = recommendations.map(function() { return "none"; });
     renderRecommendations(recommendations);
+    // Load MAL data async after render
+    loadRecMalData(recommendations);
   } catch (err) {
     document.getElementById("rec-step-loading").style.display = "none";
     document.getElementById("rec-step-results").style.display = "block";
-    document.getElementById("rec-results-list").innerHTML = '<div class="rec-error">Erreur lors de la génération. Réessaie.<br><small>' + err.message + '</small></div>';
+    document.getElementById("rec-results-list").innerHTML = '<div class="rec-error">Erreur lors de la generation. Reessaie.<br><small>' + err.message + '</small></div>';
   }
 }
 
@@ -1304,16 +1291,32 @@ function renderRecommendations(recommendations) {
 
   var html = recommendations.map(function(rec, idx) {
     var genreTags = (rec.genres || []).map(function(g) { return '<span class="rec-result-genre">' + g + '</span>'; }).join("");
+    var sequelBadge = rec.sequel_of ? '<span class="rec-sequel-badge">🔗 Suite de ' + rec.sequel_of + '</span>' : '';
     return '<div class="rec-result-card" id="rec-card-' + idx + '">' +
       '<div class="rec-result-header">' +
-        '<div class="rec-result-title">' + rec.title + (rec.year ? ' <span class="rec-result-year">(' + rec.year + ')</span>' : '') + '</div>' +
+        sequelBadge +
+        '<div class="rec-result-title-row">' +
+          '<span class="rec-result-title">' + rec.title + (rec.year ? ' <span class="rec-result-year">(' + rec.year + ')</span>' : '') + '</span>' +
+          '<a class="rec-mal-link" id="rec-mal-link-' + idx + '" href="#" target="_blank" style="display:none">MAL <span id="rec-mal-score-' + idx + '"></span> ↗</a>' +
+        '</div>' +
         '<div class="rec-result-genres">' + genreTags + '</div>' +
       '</div>' +
       '<div class="rec-result-explanation">💡 ' + rec.explanation + '</div>' +
       '<div class="rec-result-actions">' +
-        '<button class="btn-save rec-btn-plan" onclick="recPlanify(' + idx + ')">✅ Planifier</button>' +
-        '<button class="btn-cancel rec-btn-debate" onclick="recOpenDebate(' + idx + ')">💬 Débattre</button>' +
+        '<button class="rec-action-btn" id="rec-btn-plan-' + idx + '" onclick="recToggleState(' + idx + ',\'planifier\')">📋 Planifier</button>' +
+        '<button class="rec-action-btn" id="rec-btn-deja-' + idx + '" onclick="recToggleState(' + idx + ',\'dejaVu\')">👁 Déjà vu</button>' +
+        '<button class="rec-action-btn" id="rec-btn-pas-' + idx + '" onclick="recTogglePasEnvie(' + idx + ')">🚫 Pas envie</button>' +
+        '<button class="rec-action-btn rec-action-debate" id="rec-btn-debate-' + idx + '" onclick="recOpenDebate(' + idx + ')">💬</button>' +
       '</div>' +
+      '<div class="rec-pasenvie-area" id="rec-pasenvie-' + idx + '" style="display:none">' +
+        '<label class="rec-pasenvie-label">Pourquoi tu n\'as pas envie ?</label>' +
+        '<textarea class="modal-input rec-pasenvie-input" id="rec-pasenvie-input-' + idx + '" placeholder="Trop de romance, pas fan du style..."></textarea>' +
+        '<div class="rec-pasenvie-actions">' +
+          '<button class="btn-cancel" onclick="recCancelPasEnvie(' + idx + ')">Annuler</button>' +
+          '<button class="btn-save rec-btn-ai" onclick="recSavePasEnvie(' + idx + ')">Confirmer 🚫</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="rec-done-overlay" id="rec-done-' + idx + '" style="display:none"></div>' +
       '<div class="rec-debate-area" id="rec-debate-' + idx + '" style="display:none">' +
         '<div class="rec-debate-messages" id="rec-debate-msgs-' + idx + '"></div>' +
         '<div class="rec-debate-input-row">' +
@@ -1325,8 +1328,311 @@ function renderRecommendations(recommendations) {
   }).join("");
 
   document.getElementById("rec-results-list").innerHTML = html;
+  updateRecValidateBtn();
 }
 
+async function loadRecMalData(recommendations) {
+  for (var i = 0; i < recommendations.length; i++) {
+    try {
+      var rec = recommendations[i];
+      var endpoint = recType === "manga" ? "manga" : "anime";
+      var resp = await fetch("https://api.jikan.moe/v4/" + endpoint + "?q=" + encodeURIComponent(rec.title) + "&limit=1");
+      var data = await resp.json();
+      if (data.data && data.data.length > 0) {
+        var item = data.data[0];
+        var linkEl = document.getElementById("rec-mal-link-" + i);
+        var scoreEl = document.getElementById("rec-mal-score-" + i);
+        if (linkEl) {
+          linkEl.href = "https://myanimelist.net/" + endpoint + "/" + item.mal_id;
+          linkEl.style.display = "inline-flex";
+          // Store mal_id on the result for planify
+          if (recCurrentResults[i]) recCurrentResults[i]._malId = item.mal_id;
+        }
+        if (scoreEl && item.score) scoreEl.textContent = "★" + item.score;
+      }
+      if (i < recommendations.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
+    } catch(e) { console.log("MAL lookup error:", e); }
+  }
+}
+
+// ---- Card state toggle (Planifier / Déjà vu) ----
+function recToggleState(idx, state) {
+  // If card is done (pasEnvie saved), ignore
+  if (recCardStates[idx] === "pasEnvie") return;
+
+  if (recCardStates[idx] === state) {
+    recCardStates[idx] = "none";
+  } else {
+    recCardStates[idx] = state;
+  }
+  var card = document.getElementById("rec-card-" + idx);
+  var btnPlan = document.getElementById("rec-btn-plan-" + idx);
+  var btnDeja = document.getElementById("rec-btn-deja-" + idx);
+  btnPlan.classList.toggle("active", recCardStates[idx] === "planifier");
+  btnDeja.classList.toggle("active", recCardStates[idx] === "dejaVu");
+  card.classList.toggle("rec-card-selected", recCardStates[idx] !== "none");
+  updateRecValidateBtn();
+}
+
+function updateRecValidateBtn() {
+  var count = recCardStates.filter(function(s) { return s === "planifier" || s === "dejaVu"; }).length;
+  var btn = document.getElementById("rec-validate-btn");
+  if (!btn) return;
+  if (count > 0) {
+    btn.style.display = "block";
+    btn.textContent = "Valider la sélection (" + count + ")";
+  } else {
+    btn.style.display = "none";
+  }
+}
+
+// ---- Pas envie inline ----
+function recTogglePasEnvie(idx) {
+  var area = document.getElementById("rec-pasenvie-" + idx);
+  var isOpen = area.style.display !== "none";
+  area.style.display = isOpen ? "none" : "block";
+  if (!isOpen) document.getElementById("rec-pasenvie-input-" + idx).focus();
+}
+
+function recCancelPasEnvie(idx) {
+  document.getElementById("rec-pasenvie-" + idx).style.display = "none";
+}
+
+async function recSavePasEnvie(idx) {
+  var rec = recCurrentResults[idx];
+  var reason = document.getElementById("rec-pasenvie-input-" + idx).value.trim();
+  var btn = document.querySelector("#rec-card-" + idx + " .rec-btn-ai");
+  if (btn) { btn.disabled = true; btn.textContent = "Sauvegarde..."; }
+
+  try {
+    var jikanData = await recFetchJikan(rec);
+    var payload = recBuildPayload(rec, jikanData, "ignore");
+    payload.notes = reason || null;
+    var result = await sb.from("mv_works").insert(payload).select().single();
+    if (result.error) throw new Error(result.error.message);
+    works.unshift(result.data);
+    renderStats();
+    // Mark card as done
+    recCardStates[idx] = "pasEnvie";
+    recMarkCardDone(idx, "🚫 Ajouté en « Pas envie »");
+    document.getElementById("rec-pasenvie-" + idx).style.display = "none";
+    updateRecValidateBtn();
+  } catch(err) {
+    if (btn) { btn.disabled = false; btn.textContent = "Confirmer 🚫"; }
+    alert("Erreur: " + err.message);
+  }
+}
+
+function recMarkCardDone(idx, msg) {
+  var card = document.getElementById("rec-card-" + idx);
+  if (!card) return;
+  card.classList.add("rec-card-done");
+  var overlay = document.getElementById("rec-done-" + idx);
+  if (overlay) { overlay.style.display = "flex"; overlay.textContent = msg; }
+  // Disable action buttons
+  ["rec-btn-plan-" + idx, "rec-btn-deja-" + idx, "rec-btn-pas-" + idx, "rec-btn-debate-" + idx].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.disabled = true;
+  });
+}
+
+// ---- Validate selection ----
+async function recValidateSelection() {
+  var btn = document.getElementById("rec-validate-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Traitement..."; }
+
+  // 1. Process all "planifier" items silently
+  var planIndices = recCardStates.map(function(s, i) { return s === "planifier" ? i : -1; }).filter(function(i) { return i >= 0; });
+  for (var pi = 0; pi < planIndices.length; pi++) {
+    var idx = planIndices[pi];
+    try {
+      var rec = recCurrentResults[idx];
+      var jikanData = await recFetchJikan(rec);
+      var payload = recBuildPayload(rec, jikanData, "planifie");
+      var result = await sb.from("mv_works").insert(payload).select().single();
+      if (result.error) throw new Error(result.error.message);
+      works.unshift(result.data);
+      recMarkCardDone(idx, "📋 Ajouté en Planifié");
+      recCardStates[idx] = "done";
+      if (pi < planIndices.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
+    } catch(err) {
+      recMarkCardDone(idx, "❌ Erreur: " + err.message);
+      recCardStates[idx] = "done";
+    }
+  }
+  renderStats();
+  renderWorks();
+
+  // 2. Build dejaVu queue with Jikan data
+  var dejaIndices = recCardStates.map(function(s, i) { return s === "dejaVu" ? i : -1; }).filter(function(i) { return i >= 0; });
+  if (dejaIndices.length === 0) {
+    updateRecValidateBtn();
+    return;
+  }
+
+  // Fetch Jikan data for all dejaVu items
+  recDejaVuQueue = [];
+  for (var di = 0; di < dejaIndices.length; di++) {
+    var idx = dejaIndices[di];
+    var rec = recCurrentResults[idx];
+    var jikanData = null;
+    try {
+      jikanData = await recFetchJikan(rec);
+      if (di < dejaIndices.length - 1) await new Promise(function(r) { setTimeout(r, 400); });
+    } catch(e) { console.log("Jikan fetch error:", e); }
+    recDejaVuQueue.push({ rec: rec, jikanData: jikanData, cardIdx: idx });
+  }
+  recDejaVuQueueIdx = 0;
+  recProcessNextDejaVu();
+}
+
+function recProcessNextDejaVu() {
+  if (recDejaVuQueueIdx >= recDejaVuQueue.length) {
+    // All done
+    recCompleteMode = false;
+    renderStats();
+    renderWorks();
+    updateRecValidateBtn();
+    return;
+  }
+
+  var item = recDejaVuQueue[recDejaVuQueueIdx];
+  recCompleteMode = true;
+  completeRating = 7;
+
+  // Show subtitle in modal
+  var subtitleEl = document.getElementById("complete-subtitle");
+  if (subtitleEl) {
+    subtitleEl.style.display = "block";
+    subtitleEl.textContent = item.rec.title + " (" + (recDejaVuQueueIdx + 1) + "/" + recDejaVuQueue.length + ")";
+  }
+
+  document.getElementById("complete-notes").value = "";
+  buildCompleteStars();
+  document.getElementById("modal-complete").style.display = "flex";
+}
+
+// Override closeComplete to handle rec queue flow
+var _origCloseComplete = null;
+function recHandleCompleteClose(confirmed) {
+  document.getElementById("modal-complete").style.display = "none";
+  var subtitleEl = document.getElementById("complete-subtitle");
+  if (subtitleEl) subtitleEl.style.display = "none";
+
+  var item = recDejaVuQueue[recDejaVuQueueIdx];
+  if (confirmed) {
+    var notes = document.getElementById("complete-notes").value || null;
+    var rating = completeRating;
+    // Save async, then move to next
+    (async function() {
+      try {
+        var jikanData = item.jikanData;
+        var payload = recBuildPayload(item.rec, jikanData, "termine");
+        payload.rating = rating;
+        payload.notes = notes;
+        var result = await sb.from("mv_works").insert(payload).select().single();
+        if (result.error) throw new Error(result.error.message);
+        works.unshift(result.data);
+        recMarkCardDone(item.cardIdx, "✅ Ajouté en Terminé");
+        recCardStates[item.cardIdx] = "done";
+      } catch(err) {
+        recMarkCardDone(item.cardIdx, "❌ Erreur");
+        console.error(err);
+      }
+      recDejaVuQueueIdx++;
+      recProcessNextDejaVu();
+    })();
+  } else {
+    // Skip this one
+    recDejaVuQueueIdx++;
+    recProcessNextDejaVu();
+  }
+}
+
+// Patch closeComplete to support rec mode
+function closeComplete(confirmed) {
+  if (recCompleteMode) {
+    recHandleCompleteClose(confirmed);
+    return;
+  }
+  // Original logic
+  document.getElementById("modal-complete").style.display = "none";
+  if (confirmed) {
+    var formObj = completeType === "manga" ? mangaForm : animeForm;
+    formObj.rating = completeRating;
+    var starsId = completeType === "manga" ? "fm-stars" : "fa-stars";
+    var labelId = completeType === "manga" ? "fm-rating-label" : "fa-rating-label";
+    var notesId = completeType === "manga" ? "fm-notes" : "fa-notes";
+    document.getElementById(labelId).textContent = completeRating + "/10";
+    document.getElementById(notesId).value = document.getElementById("complete-notes").value;
+    buildStars(starsId, formObj);
+  } else {
+    var statusEl = document.getElementById(completeType === "manga" ? "fm-status" : "fa-status");
+    var work = works.find(function(w) { return w.id === editingId; });
+    if (work) statusEl.value = work.status;
+  }
+}
+
+// ---- Jikan helpers for rec ----
+async function recFetchJikan(rec) {
+  var endpoint = recType === "manga" ? "manga" : "anime";
+  // Use stored malId if available from loadRecMalData
+  if (rec._malId) {
+    var resp = await fetch("https://api.jikan.moe/v4/" + endpoint + "/" + rec._malId + "/full");
+    var data = await resp.json();
+    return data.data || null;
+  }
+  // Fallback: search by title
+  var resp = await fetch("https://api.jikan.moe/v4/" + endpoint + "?q=" + encodeURIComponent(rec.title) + "&limit=1");
+  var data = await resp.json();
+  if (!data.data || data.data.length === 0) return null;
+  var malId = data.data[0].mal_id;
+  await new Promise(function(r) { setTimeout(r, 400); });
+  var detResp = await fetch("https://api.jikan.moe/v4/" + endpoint + "/" + malId + "/full");
+  var detData = await detResp.json();
+  return detData.data || null;
+}
+
+function recBuildPayload(rec, d, status) {
+  var payload = {
+    type: recType,
+    title: (d && d.title) || rec.title,
+    status: status,
+    genres: d ? mapJikanGenres(d) : (rec.genres || []),
+    image_url: (d && d.images && d.images.jpg && d.images.jpg.large_image_url) || null,
+    mal_id: (d && d.mal_id) || null,
+    mal_score: (d && d.score) || null,
+    user_id: currentUser.id,
+    rating: null,
+    notes: null,
+  };
+  if (recType === "manga") {
+    payload.author = (d && d.authors && d.authors.length > 0) ? reverseAuthorName(d.authors[0].name || "") : null;
+    payload.year = (d && d.published && d.published.prop && d.published.prop.from) ? d.published.prop.from.year || null : null;
+    payload.volumes_vo = (d && d.volumes) || null;
+    payload.volumes_read = status === "termine" ? (payload.volumes_vo || 0) : 0;
+    var format = "";
+    if (d && d.demographics && d.demographics.length > 0) {
+      var demo = d.demographics[0].name.toLowerCase();
+      if (demo.indexOf("shonen") >= 0 || demo.indexOf("shounen") >= 0) format = "shonen";
+      else if (demo.indexOf("seinen") >= 0) format = "seinen";
+      else if (demo.indexOf("shojo") >= 0 || demo.indexOf("shoujo") >= 0) format = "shojo";
+      else if (demo.indexOf("josei") >= 0) format = "josei";
+    }
+    payload.format = format;
+    payload.publication_status = (d && d.status && d.status.toLowerCase().indexOf("finished") >= 0) ? "termine" : "en_cours";
+  } else {
+    payload.studio = (d && d.studios && d.studios.length > 0) ? d.studios[0].name : null;
+    payload.year = (d && d.year) || null;
+    payload.season_name = (d && mapJikanSeason(d.season)) || null;
+    payload.platform = (d && mapJikanPlatform(d.streaming)) || null;
+    payload.episodes_total = (d && d.episodes) || null;
+    payload.episodes_watched = status === "termine" ? (payload.episodes_total || 0) : 0;
+  }
+  return payload;
+}
+
+// ---- Debate ----
 function recOpenDebate(idx) {
   var area = document.getElementById("rec-debate-" + idx);
   var isOpen = area.style.display !== "none";
@@ -1339,162 +1645,65 @@ async function recSendDebate(idx) {
   var msg = input.value.trim();
   if (!msg) return;
   input.value = "";
-
   var rec = recCurrentResults[idx];
-
-  // Add user message to history for this card
-  recDebateHistory[idx].push({
-    role: "assistant",
-    content: JSON.stringify([rec]) // Claude's previous proposal
-  });
-  recDebateHistory[idx].push({
-    role: "user",
-    content: msg
-  });
-
-  // Show message in UI
+  recDebateHistory[idx].push({ role: "assistant", content: JSON.stringify([rec]) });
+  recDebateHistory[idx].push({ role: "user", content: msg });
   var msgsEl = document.getElementById("rec-debate-msgs-" + idx);
   msgsEl.innerHTML += '<div class="rec-debate-msg user">' + msg + '</div>';
   msgsEl.innerHTML += '<div class="rec-debate-msg ai thinking">...</div>';
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
-  // Call API with debate history
   try {
-    var collection = works.filter(function(w) { return w.type === recType; }).map(function(w) {
-      return { title: w.title, rating: w.rating, notes: w.notes, genres: w.genres, status: w.status };
-    });
+    var collection = works.filter(function(w) { return w.type === recType && w.status !== "ignore" && w.status !== "planifie"; })
+      .map(function(w) { return { title: w.title, rating: w.rating, notes: w.notes, genres: w.genres, status: w.status }; });
+    var ignored = works.filter(function(w) { return w.type === recType && w.status === "ignore"; })
+      .map(function(w) { return { title: w.title, notes: w.notes }; });
+    var planned = works.filter(function(w) { return w.type === recType && w.status === "planifie"; })
+      .map(function(w) { return { title: w.title }; });
 
     var resp = await fetch("/api/ai-recommend", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        collection: collection,
-        type: recType,
-        genres: recGenres,
-        messages: recDebateHistory[idx],
-      }),
+      body: JSON.stringify({ collection: collection, ignored: ignored, planned: planned, type: recType, genres: recGenres, messages: recDebateHistory[idx] }),
     });
     var data = await resp.json();
     if (data.error) throw new Error(data.error);
-
     var text = data.text.trim().replace(/```json|```/g, "").trim();
-
-    // Try to parse as JSON array (new proposals), otherwise treat as text reply
     var newRecs;
-    try {
-      newRecs = JSON.parse(text);
-    } catch(e) { newRecs = null; }
+    try { newRecs = JSON.parse(text); } catch(e) { newRecs = null; }
 
-    // Remove the "thinking" bubble
     var thinking = msgsEl.querySelector(".thinking");
     if (thinking) thinking.remove();
 
     if (newRecs && Array.isArray(newRecs) && newRecs.length > 0) {
-      // Update this card with the new proposal
       recCurrentResults[idx] = newRecs[0];
       recDebateHistory[idx].push({ role: "assistant", content: JSON.stringify(newRecs) });
-
-      msgsEl.innerHTML += '<div class="rec-debate-msg ai">Voici une nouvelle proposition ↓</div>';
-
-      // Re-render just this card (keep debate open)
+      msgsEl.innerHTML += '<div class="rec-debate-msg ai">Nouvelle proposition ↓</div>';
       var card = document.getElementById("rec-card-" + idx);
       var newRec = newRecs[0];
       var genreTags = (newRec.genres || []).map(function(g) { return '<span class="rec-result-genre">' + g + '</span>'; }).join("");
       card.querySelector(".rec-result-title").innerHTML = newRec.title + (newRec.year ? ' <span class="rec-result-year">(' + newRec.year + ')</span>' : '');
       card.querySelector(".rec-result-genres").innerHTML = genreTags;
       card.querySelector(".rec-result-explanation").innerHTML = "💡 " + newRec.explanation;
+      // Update sequel badge
+      var seqEl = card.querySelector(".rec-sequel-badge");
+      if (newRec.sequel_of) {
+        if (!seqEl) card.querySelector(".rec-result-header").insertAdjacentHTML("afterbegin", '<span class="rec-sequel-badge">🔗 Suite de ' + newRec.sequel_of + '</span>');
+        else seqEl.textContent = "🔗 Suite de " + newRec.sequel_of;
+      } else if (seqEl) seqEl.remove();
+      // Reload MAL
+      loadRecMalData([newRec]);
     } else {
-      // Plain text reply (discussion)
       recDebateHistory[idx].push({ role: "assistant", content: data.text });
       msgsEl.innerHTML += '<div class="rec-debate-msg ai">' + data.text + '</div>';
     }
     msgsEl.scrollTop = msgsEl.scrollHeight;
-  } catch (err) {
+  } catch(err) {
     var thinking = msgsEl.querySelector(".thinking");
     if (thinking) thinking.innerHTML = "Erreur: " + err.message;
   }
 }
 
-async function recPlanify(idx) {
-  var rec = recCurrentResults[idx];
-  var btn = document.querySelector("#rec-card-" + idx + " .rec-btn-plan");
-  btn.disabled = true;
-  btn.textContent = "Recherche...";
-
-  try {
-    // Search Jikan for the title
-    var endpoint = recType === "manga" ? "manga" : "anime";
-    var resp = await fetch("https://api.jikan.moe/v4/" + endpoint + "?q=" + encodeURIComponent(rec.title) + "&limit=1");
-    var data = await resp.json();
-
-    if (!data.data || data.data.length === 0) throw new Error("Œuvre non trouvée sur Jikan");
-
-    var item = data.data[0];
-    var malId = item.mal_id;
-
-    // Fetch full details
-    await new Promise(function(r) { setTimeout(r, 400); });
-    var detailResp = await fetch("https://api.jikan.moe/v4/" + endpoint + "/" + malId + "/full");
-    var detailData = await detailResp.json();
-    var d = detailData.data;
-
-    // Build payload
-    var payload = {
-      type: recType,
-      title: d.title || rec.title,
-      status: "planifie",
-      genres: mapJikanGenres(d),
-      image_url: (d.images && d.images.jpg && d.images.jpg.large_image_url) || null,
-      mal_id: malId,
-      mal_score: d.score || null,
-      user_id: currentUser.id,
-    };
-
-    if (recType === "manga") {
-      payload.author = (d.authors && d.authors.length > 0) ? reverseAuthorName(d.authors[0].name || "") : null;
-      payload.year = (d.published && d.published.prop && d.published.prop.from) ? d.published.prop.from.year || null : null;
-      payload.volumes_vo = d.volumes || null;
-      payload.volumes_read = 0;
-      payload.format = "";
-      if (d.demographics && d.demographics.length > 0) {
-        var demo = d.demographics[0].name.toLowerCase();
-        if (demo.indexOf("shonen") >= 0 || demo.indexOf("shounen") >= 0) payload.format = "shonen";
-        else if (demo.indexOf("seinen") >= 0) payload.format = "seinen";
-        else if (demo.indexOf("shojo") >= 0 || demo.indexOf("shoujo") >= 0) payload.format = "shojo";
-        else if (demo.indexOf("josei") >= 0) payload.format = "josei";
-      }
-      payload.publication_status = "en_cours";
-      if (d.status && d.status.toLowerCase().indexOf("finished") >= 0) payload.publication_status = "termine";
-    } else {
-      payload.studio = (d.studios && d.studios.length > 0) ? d.studios[0].name : null;
-      payload.year = d.year || null;
-      payload.season_name = mapJikanSeason(d.season);
-      payload.platform = mapJikanPlatform(d.streaming);
-      payload.episodes_total = d.episodes || null;
-      payload.episodes_watched = 0;
-    }
-
-    var result = await sb.from("mv_works").insert(payload).select().single();
-    if (result.error) throw new Error(result.error.message);
-
-    works.unshift(result.data);
-    renderStats();
-    renderWorks();
-
-    btn.textContent = "✓ Ajouté !";
-    btn.style.background = "linear-gradient(135deg, #22c55e, #16a34a)";
-    // Disable debate button too
-    var debateBtn = document.querySelector("#rec-card-" + idx + " .rec-btn-debate");
-    if (debateBtn) debateBtn.disabled = true;
-
-  } catch (err) {
-    btn.disabled = false;
-    btn.textContent = "✅ Planifier";
-    alert("Erreur: " + err.message);
-  }
-}
-
-// ============================================
 // CHANGELOG
 // ============================================
 

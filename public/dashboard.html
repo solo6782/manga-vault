@@ -45,7 +45,7 @@
           <button class="filter-btn" onclick="setFilter('type','anime',this)">アニメ</button>
         </div>
         <select class="filter-select" id="status-filter" onchange="renderWorks()">
-          <option value="all">Tous statuts</option><option value="en_cours">En cours</option><option value="termine">Terminé</option><option value="en_pause">En pause</option><option value="abandonne">Abandonné</option><option value="planifie">Planifié</option>
+          <option value="all">Tous statuts</option><option value="en_cours">En cours</option><option value="termine">Terminé</option><option value="en_pause">En pause</option><option value="abandonne">Abandonné</option><option value="planifie">Planifié</option><option value="ignore">Pas envie</option>
         </select>
         <select class="filter-select" id="sort-by" onchange="renderWorks()">
           <option value="created_at">Plus récent</option><option value="rating">Meilleure note</option><option value="title">A → Z</option>
@@ -74,7 +74,7 @@
         <div class="modal-field"><label class="modal-label">Titre</label><input class="modal-input" id="fm-title" placeholder="Titre du manga"></div>
         <div class="modal-row"><div><label class="modal-label">Auteur</label><input class="modal-input" id="fm-author" placeholder="Auteur"></div><div><label class="modal-label">Format</label><select class="modal-input" id="fm-format"><option value="">—</option><option value="shonen">Shōnen</option><option value="seinen">Seinen</option><option value="shojo">Shōjo</option><option value="josei">Josei</option></select></div></div>
         <div class="modal-row"><div><label class="modal-label">Année de publication</label><input class="modal-input" type="number" id="fm-year" placeholder="2018"></div><div><label class="modal-label">Statut de publication</label><select class="modal-input" id="fm-pub-status"><option value="en_cours">En cours</option><option value="termine">Terminé</option><option value="en_pause">En pause</option></select></div></div>
-        <div class="modal-row"><div><label class="modal-label">Statut de lecture</label><select class="modal-input" id="fm-status" onchange="onStatusChange('manga')"><option value="en_cours">En cours</option><option value="termine">Terminé</option><option value="en_pause">En pause</option><option value="abandonne">Abandonné</option><option value="planifie">Planifié</option></select></div><div><label class="modal-label">Note</label><div class="star-rating" id="fm-stars"></div><span class="rating-display" id="fm-rating-label">7/10</span></div></div>
+        <div class="modal-row"><div><label class="modal-label">Statut de lecture</label><select class="modal-input" id="fm-status" onchange="onStatusChange('manga')"><option value="en_cours">En cours</option><option value="termine">Terminé</option><option value="en_pause">En pause</option><option value="abandonne">Abandonné</option><option value="planifie">Planifié</option><option value="ignore">Pas envie</option></select></div><div><label class="modal-label">Note</label><div class="star-rating" id="fm-stars"></div><span class="rating-display" id="fm-rating-label">7/10</span></div></div>
         <div class="modal-field"><label class="modal-label">Genres</label><div class="genre-tags" id="fm-genres"></div></div>
         <div class="modal-row"><div><label class="modal-label">Volumes lus</label><input class="modal-input" type="number" id="fm-volumes" placeholder="0"></div><div><label class="modal-label">Volumes VO (Japon)</label><input class="modal-input" type="number" id="fm-volumes-vo" placeholder="?"></div></div>
         <div class="modal-field"><label class="modal-label">Volumes VF (France)</label><div class="vf-field-row"><input class="modal-input" type="number" id="fm-fr-volumes" placeholder="?"><button class="btn-search-vf" id="fm-vf-btn" onclick="searchVF()" title="Ouvrir Nautiljon">📖 Nautiljon ↗</button></div><div id="fm-vf-status" class="vf-status" style="display:none"></div></div>
@@ -103,7 +103,7 @@
         <div class="modal-field"><label class="modal-label">Titre</label><input class="modal-input" id="fa-title" placeholder="Titre de l'anime"></div>
         <div class="modal-row"><div><label class="modal-label">Saison de diffusion</label><select class="modal-input" id="fa-season"><option value="">—</option><option value="hiver">Hiver (Jan-Mar)</option><option value="printemps">Printemps (Avr-Juin)</option><option value="ete">Été (Juil-Sep)</option><option value="automne">Automne (Oct-Déc)</option></select></div><div><label class="modal-label">Année de diffusion</label><input class="modal-input" type="number" id="fa-year" placeholder="2024"></div></div>
         <div class="modal-row"><div><label class="modal-label">Studio</label><input class="modal-input" id="fa-studio" placeholder="Ex: Madhouse"></div><div><label class="modal-label">Plateforme</label><select class="modal-input" id="fa-platform"><option value="">—</option><option value="crunchyroll">Crunchyroll</option><option value="netflix">Netflix</option><option value="adn">ADN</option><option value="disney">Disney+</option><option value="prime">Prime Video</option><option value="hidive">HIDIVE</option><option value="autre">Autre</option></select></div></div>
-        <div class="modal-row"><div><label class="modal-label">Statut de visionnage</label><select class="modal-input" id="fa-status" onchange="onStatusChange('anime')"><option value="en_cours">En cours</option><option value="termine">Terminé</option><option value="en_pause">En pause</option><option value="abandonne">Abandonné</option><option value="planifie">Planifié</option></select></div><div><label class="modal-label">Note</label><div class="star-rating" id="fa-stars"></div><span class="rating-display" id="fa-rating-label">7/10</span></div></div>
+        <div class="modal-row"><div><label class="modal-label">Statut de visionnage</label><select class="modal-input" id="fa-status" onchange="onStatusChange('anime')"><option value="en_cours">En cours</option><option value="termine">Terminé</option><option value="en_pause">En pause</option><option value="abandonne">Abandonné</option><option value="planifie">Planifié</option><option value="ignore">Pas envie</option></select></div><div><label class="modal-label">Note</label><div class="star-rating" id="fa-stars"></div><span class="rating-display" id="fa-rating-label">7/10</span></div></div>
         <div class="modal-field"><label class="modal-label">Genres</label><div class="genre-tags" id="fa-genres"></div></div>
         <div class="modal-row"><div><label class="modal-label">Épisodes vus</label><input class="modal-input" type="number" id="fa-episodes" placeholder="0"></div><div><label class="modal-label">Épisodes total</label><input class="modal-input" type="number" id="fa-episodes-total" placeholder="?"></div></div>
         <div class="modal-field"><label class="modal-label">Nombre de saisons</label><input class="modal-input" type="number" id="fa-seasons" placeholder="1" style="width:160px"></div>
@@ -135,6 +135,7 @@
       <div class="modal-header-bar" style="background: linear-gradient(135deg, #22c55e, #16a34a);">
         <h2>✅ Terminé !</h2>
       </div>
+      <div id="complete-subtitle" class="complete-subtitle" style="display:none"></div>
       <div class="wiz-step" style="display:block">
         <label class="wiz-label">Ta note ?</label>
         <div class="star-rating wiz-stars" id="complete-stars"></div>
@@ -255,6 +256,7 @@
       <div id="rec-step-results" class="rec-step" style="display:none">
         <div id="rec-results-list"></div>
         <div class="rec-results-footer">
+          <button id="rec-validate-btn" class="btn-save rec-btn-validate" onclick="recValidateSelection()" style="display:none">Valider la sélection</button>
           <button class="btn-cancel" onclick="fetchRecommendations()">🔄 Nouvelles propositions</button>
         </div>
       </div>
@@ -264,7 +266,7 @@
 
   <!-- Footer version -->
   <footer class="app-footer" onclick="openChangelog()">
-    <span class="version-btn">v1.1.0</span>
+    <span class="version-btn">v1.2.0</span>
   </footer>
 
   <!-- MODAL CHANGELOG -->
@@ -275,6 +277,32 @@
         <button class="universe-close-btn" onclick="closeChangelog()">✕</button>
       </div>
       <div class="changelog-content">
+
+        <div class="changelog-version">
+          <div class="changelog-version-header">
+            <span class="changelog-tag">v1.2.0</span>
+            <span class="changelog-date">Mars 2026</span>
+          </div>
+          <div class="changelog-section">
+            <h4>Recommandations IA — améliorations</h4>
+            <ul>
+              <li>Score MAL + lien MyAnimeList sur chaque proposition (chargement progressif)</li>
+              <li>Badge "🔗 Suite de [titre]" quand la proposition est la suite d'une œuvre de la collection</li>
+              <li>Multi-sélection : Planifier / Déjà vu sur chaque carte, bouton "Valider la sélection"</li>
+              <li>Déjà vu en séquence : pour chaque œuvre déjà vue, la modale demande la note puis le commentaire</li>
+              <li>Bouton "🚫 Pas envie" : sauvegarde l'œuvre avec un commentaire en statut "Pas envie"</li>
+              <li>L'IA tient compte des œuvres ignorées (et leurs raisons) pour ses prochaines propositions</li>
+              <li>L'IA évite aussi de reproposer les œuvres déjà planifiées</li>
+            </ul>
+          </div>
+          <div class="changelog-section">
+            <h4>Collection</h4>
+            <ul>
+              <li>Nouveau statut "Pas envie" (ignoré) : visible dans les filtres et modifiable via ✎</li>
+              <li>Les œuvres "Pas envie" sont masquées du fil principal par défaut</li>
+            </ul>
+          </div>
+        </div>
 
         <div class="changelog-version">
           <div class="changelog-version-header">

@@ -8,64 +8,61 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Handle CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    // AI Recommendation endpoint
     if (url.pathname === "/api/ai-recommend" && request.method === "POST") {
       try {
         const body = await request.json();
-        const { collection, type, genres, messages } = body;
+        const { collection, ignored, planned, type, genres, messages } = body;
 
-        // Build system prompt
-        const systemPrompt = `Tu es un expert en manga et anime. Tu connais parfaitement les œuvres japonaises et tu recommandes des œuvres adaptées aux goûts de l'utilisateur en te basant sur sa collection.
+        const systemPrompt = `Tu es un expert en manga et anime. Tu connais parfaitement les oeuvres japonaises et tu recommandes des oeuvres adaptees aux gouts de l'utilisateur en te basant sur sa collection.
 
-Règles importantes :
-- Ne recommande JAMAIS une œuvre déjà présente dans la collection de l'utilisateur.
-- Base-toi sur les notes (1-10) et les commentaires personnels pour comprendre ses goûts.
-- Propose des œuvres de type "${type}" uniquement.
-${genres && genres.length > 0 ? `- Les genres demandés sont : ${genres.join(", ")}. Privilégie ces genres.` : ""}
-- Pour chaque recommandation, explique PRÉCISÉMENT pourquoi elle correspond à ses goûts, en citant des œuvres spécifiques de sa collection.
+Regles ABSOLUES :
+- Ne recommande JAMAIS une oeuvre deja presente dans la collection (vue, en cours, planifiee ou ignoree).
+- Propose des oeuvres de type "${type}" uniquement.
+${genres && genres.length > 0 ? `- Les genres demandes : ${genres.join(", ")}. Privilegies ces genres.` : ""}
+- Base-toi sur les notes ET les commentaires personnels pour comprendre finement les gouts.
+- Pour chaque recommandation, explique PRECISEMENT pourquoi elle correspond, en citant des oeuvres specifiques de la collection.
+- Si une oeuvre est la suite DIRECTE d'une oeuvre de la collection, indique-le dans sequel_of avec le titre exact de l'oeuvre parente.
+- Tiens compte des oeuvres ignorees et de leurs raisons pour affiner tes propositions.
 
-Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown ni texte autour. Format exact :
-[
-  {
-    "title": "Titre romaji exact (tel que sur MyAnimeList)",
-    "explanation": "Explication personnalisée de 2-3 phrases pourquoi cette œuvre lui correspond, en citant sa collection",
-    "genres": ["Genre1", "Genre2"],
-    "year": 2020
-  }
-]
-Propose exactement 3 œuvres.`;
+Reponds UNIQUEMENT avec un tableau JSON valide, sans markdown ni texte autour. Format exact :
+[{"title":"Titre romaji exact","explanation":"Explication 2-3 phrases","genres":["Genre1"],"year":2020,"sequel_of":null}]
+sequel_of = null ou titre exact d'une oeuvre de la collection dont c'est la suite directe.
+Propose exactement 3 oeuvres.`;
 
-        // Build collection summary
-        const collectionSummary = collection.map(function(w) {
+        const collectionSummary = (collection || []).map(function(w) {
           var parts = [w.title];
           if (w.rating) parts.push("note: " + w.rating + "/10");
-          if (w.notes) parts.push("commentaire: \"" + w.notes + "\"");
+          if (w.notes) parts.push('commentaire: "' + w.notes + '"');
           if (w.genres && w.genres.length) parts.push("genres: " + w.genres.join(", "));
-          if (w.status === "termine") parts.push("(terminé)");
+          if (w.status === "termine") parts.push("(termine)");
           else if (w.status === "en_cours") parts.push("(en cours)");
           return "- " + parts.join(", ");
         }).join("\n");
 
-        // Build messages for Claude
-        var claudeMessages = [];
+        const ignoredSummary = (ignored || []).map(function(w) {
+          var parts = [w.title];
+          if (w.notes) parts.push('raison: "' + w.notes + '"');
+          return "- " + parts.join(", ");
+        }).join("\n");
 
+        const plannedSummary = (planned || []).map(function(w) {
+          return "- " + w.title;
+        }).join("\n");
+
+        var contextBlock = "Voici ma collection de " + type + "s (vues ou en cours) :\n" + (collectionSummary || "(vide)");
+        if (ignoredSummary) contextBlock += "\n\nOeuvres que je ne veux PAS voir (ne jamais reproposer, comprends pourquoi) :\n" + ignoredSummary;
+        if (plannedSummary) contextBlock += "\n\nOeuvres deja planifiees (ne pas reproposer) :\n" + plannedSummary;
+        contextBlock += "\n\nProposes-moi 3 " + type + "s que je devrais decouvrir.";
+
+        var claudeMessages = [];
         if (!messages || messages.length === 0) {
-          // First call: send collection
-          claudeMessages = [{
-            role: "user",
-            content: `Voici ma collection de ${type}s :\n${collectionSummary}\n\nProposes-moi 3 ${type}s que je devrais découvrir.`
-          }];
+          claudeMessages = [{ role: "user", content: contextBlock }];
         } else {
-          // Debate: send full history including collection context
-          claudeMessages = [{
-            role: "user",
-            content: `Voici ma collection de ${type}s :\n${collectionSummary}\n\nProposes-moi 3 ${type}s que je devrais découvrir.`
-          }, ...messages];
+          claudeMessages = [{ role: "user", content: contextBlock }, ...messages];
         }
 
         const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -76,7 +73,7 @@ Propose exactement 3 œuvres.`;
             "anthropic-version": "2023-06-01",
           },
           body: JSON.stringify({
-            model: "claude-opus-4-5",
+            model: "claude-sonnet-4-5",
             max_tokens: 1500,
             system: systemPrompt,
             messages: claudeMessages,
@@ -84,7 +81,7 @@ Propose exactement 3 œuvres.`;
         });
 
         const data = await response.json();
-        const text = data.content && data.content[0] && data.content[0].text || "[]";
+        const text = (data.content && data.content[0] && data.content[0].text) || "[]";
 
         return new Response(JSON.stringify({ text }), {
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
@@ -98,7 +95,6 @@ Propose exactement 3 œuvres.`;
       }
     }
 
-    // Serve static assets
     return env.ASSETS.fetch(request);
   }
 };
