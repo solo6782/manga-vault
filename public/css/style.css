@@ -761,3 +761,6 @@ select.modal-input { cursor: pointer; }
   font-size: 14px; padding: 12px 24px;
 }
 .rec-results-footer { padding: 16px 28px 28px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+/* modal-complete must always appear above other modals */
+#modal-complete { z-index: 1100; }

@@ -1493,10 +1493,11 @@ async function recValidateSelection() {
 
 function recProcessNextDejaVu() {
   if (recDejaVuQueueIdx >= recDejaVuQueue.length) {
-    // All done
+    // All done — restore recommend modal so user can see results
     recCompleteMode = false;
     renderStats();
     renderWorks();
+    document.getElementById("modal-recommend").style.display = "flex";
     updateRecValidateBtn();
     return;
   }
@@ -1504,6 +1505,9 @@ function recProcessNextDejaVu() {
   var item = recDejaVuQueue[recDejaVuQueueIdx];
   recCompleteMode = true;
   completeRating = 7;
+
+  // Hide recommend modal so complete modal is visible (z-index safety)
+  document.getElementById("modal-recommend").style.display = "none";
 
   // Show subtitle in modal
   var subtitleEl = document.getElementById("complete-subtitle");
