@@ -209,6 +209,62 @@
     </div>
   </div>
 
+  <!-- Footer version -->
+  <footer class="app-footer" onclick="openChangelog()">
+    <span class="version-btn">v1.0.0</span>
+  </footer>
+
+  <!-- MODAL CHANGELOG -->
+  <div id="modal-changelog" class="modal-overlay" style="display:none" onclick="closeChangelog()">
+    <div class="modal modal-changelog" onclick="event.stopPropagation()">
+      <div class="modal-header-bar" style="background: linear-gradient(135deg, #1e293b, #334155);">
+        <h2>Changelog</h2>
+        <button class="universe-close-btn" onclick="closeChangelog()">✕</button>
+      </div>
+      <div class="changelog-content">
+
+        <div class="changelog-version">
+          <div class="changelog-version-header">
+            <span class="changelog-tag">v1.0.0</span>
+            <span class="changelog-date">Mars 2026</span>
+          </div>
+          <div class="changelog-section">
+            <h4>Fonctionnalités</h4>
+            <ul>
+              <li>Authentification Supabase (inscription / connexion / déconnexion)</li>
+              <li>Ajout manga et anime avec recherche Jikan API (MyAnimeList)</li>
+              <li>Auto-remplissage : titre, auteur/studio, année, format, genres, cover, score MAL</li>
+              <li>Titres anglais affichés en sous-titre dans les résultats de recherche</li>
+              <li>Wizard étape par étape lors de l'ajout (statut → progression → note → commentaire)</li>
+              <li>Modal de complétion quand une œuvre passe à "Terminé"</li>
+              <li>Système de notation 1-10 étoiles</li>
+              <li>Genres avec tags cliquables</li>
+              <li>Filtres : type (manga/anime), statut, recherche textuelle</li>
+              <li>Tri par titre, année, note</li>
+              <li>Groupement par univers/franchise avec crawl récursif des relations Jikan</li>
+              <li>Modale univers : œuvres possédées + exploration complète</li>
+              <li>Liens MAL sur les cartes (score cliquable) et dans la modale univers</li>
+              <li>Sous-titres anglais et année dans la modale univers</li>
+              <li>Mise à jour automatique des scores MAL au chargement</li>
+              <li>Badges de statut avec couleurs contrastées</li>
+              <li>Interface responsive et dark mode</li>
+            </ul>
+          </div>
+          <div class="changelog-section">
+            <h4>Architecture</h4>
+            <ul>
+              <li>Frontend : Vanilla JS / HTML / CSS</li>
+              <li>Backend : Supabase (PostgreSQL + Auth)</li>
+              <li>Hosting : Cloudflare Workers</li>
+              <li>API : Jikan v4 (MyAnimeList)</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>

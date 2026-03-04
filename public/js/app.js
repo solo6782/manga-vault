@@ -1184,6 +1184,13 @@ async function deleteWork(id) {
 }
 
 // ============================================
+// CHANGELOG
+// ============================================
+
+function openChangelog() { document.getElementById("modal-changelog").style.display = "flex"; }
+function closeChangelog() { document.getElementById("modal-changelog").style.display = "none"; }
+
+// ============================================
 // INIT
 // ============================================
 

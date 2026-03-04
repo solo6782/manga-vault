@@ -550,3 +550,40 @@ select.modal-input { cursor: pointer; }
   pointer-events: none; z-index: 5; white-space: nowrap;
 }
 .work-card.has-universe:hover .work-card-universe-hint { opacity: 1; }
+
+/* ============================================
+   FOOTER & CHANGELOG
+   ============================================ */
+
+.app-footer {
+  text-align: center; padding: 24px 0 16px; cursor: pointer;
+}
+.version-btn {
+  display: inline-block; font-size: 11px; color: #555; font-family: var(--font-mono);
+  padding: 4px 12px; border: 1px solid rgba(255,255,255,0.06); border-radius: 20px;
+  transition: all 0.2s; letter-spacing: 0.5px;
+}
+.version-btn:hover { color: #888; border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.03); }
+
+.modal-changelog { max-width: 560px; max-height: 80vh; }
+.changelog-content { padding: 20px; overflow-y: auto; max-height: 65vh; }
+
+.changelog-version { margin-bottom: 24px; }
+.changelog-version:last-child { margin-bottom: 0; }
+.changelog-version-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.changelog-tag {
+  display: inline-block; background: rgba(99,102,241,0.2); color: #818cf8;
+  padding: 4px 12px; border-radius: 6px; font-size: 14px; font-weight: 700;
+  font-family: var(--font-mono); border: 1px solid rgba(99,102,241,0.3);
+}
+.changelog-date { font-size: 13px; color: #666; }
+
+.changelog-section { margin-bottom: 16px; }
+.changelog-section h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 8px; }
+.changelog-section ul { list-style: none; padding: 0; margin: 0; }
+.changelog-section li {
+  font-size: 13px; color: #bbb; padding: 4px 0 4px 16px; position: relative; line-height: 1.4;
+}
+.changelog-section li::before {
+  content: "→"; position: absolute; left: 0; color: #555;
+}
